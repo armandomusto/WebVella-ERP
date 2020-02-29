@@ -1,5 +1,4 @@
-﻿using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Mvc;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -15,7 +14,6 @@ using WebVella.Erp.Web.Services;
 
 namespace WebVella.Erp.Web.Pages.Application
 {
-	[Authorize]
 	public class RecordRelatedRecordManagePageModel : BaseErpPageModel
 	{
 		public RecordRelatedRecordManagePageModel([FromServices]ErpRequestContext reqCtx) { ErpRequestContext = reqCtx; }
@@ -24,8 +22,8 @@ namespace WebVella.Erp.Web.Pages.Application
 		{
 			try
 			{
-				Init();
-
+				var initResult = Init();
+				if (initResult != null) return initResult;
 				if (ErpRequestContext.Page == null) return NotFound();
 				if (PageName != ErpRequestContext.Page.Name)
 				{
@@ -47,6 +45,7 @@ namespace WebVella.Erp.Web.Pages.Application
 			catch (Exception ex)
 			{
 				new Log().Create(LogType.Error, "RecordRelatedRecordManagePageModel Error on GET", ex);
+				Validation.Message = ex.Message;
 				BeforeRender();
 				return Page();
 			}
@@ -57,14 +56,15 @@ namespace WebVella.Erp.Web.Pages.Application
 			try
 			{
 				if (!ModelState.IsValid) throw new Exception("Antiforgery check failed.");
-				Init();
+				var initResult = Init();
+				if (initResult != null) return initResult;
 				if (ErpRequestContext.Page == null) return NotFound();
 				if (!RecordsExists()) return NotFound();
 				if (PageName != ErpRequestContext.Page.Name)
 					return Redirect($"/{ErpRequestContext.App.Name}/{ErpRequestContext.SitemapArea.Name}/{ErpRequestContext.SitemapNode.Name}/r/{ErpRequestContext.ParentRecordId}/rl/{ErpRequestContext.RelationId}/m/{ErpRequestContext.Page.Name}");
 
 				//Standard Page functionality
-				var PostObject = new PageService().ConvertFormPostToEntityRecord(PageContext.HttpContext, entity: ErpRequestContext.Entity);
+				var PostObject = new PageService().ConvertFormPostToEntityRecord(PageContext.HttpContext, entity: ErpRequestContext.Entity, recordId: RecordId);
 				DataModel.SetRecord(PostObject);
 
 				var globalHookInstances = HookManager.GetHookedInstances<IPageHook>(HookKey);
@@ -74,8 +74,8 @@ namespace WebVella.Erp.Web.Pages.Application
 					if (result != null) return result;
 				}
 
-
-				ValidateRecordSubmission(PostObject, ErpRequestContext.Entity, Validation);
+				//record submission validates required fields and auto number - these fields are validated in recordmanager
+				//ValidateRecordSubmission(PostObject, ErpRequestContext.Entity, Validation);
 				if (Validation.Errors.Count == 0)
 				{
 
@@ -128,9 +128,17 @@ namespace WebVella.Erp.Web.Pages.Application
 				BeforeRender();
 				return Page();
 			}
+			catch (ValidationException valEx)
+			{
+				Validation.Message = valEx.Message;
+				Validation.Errors.AddRange(valEx.Errors);
+				BeforeRender();
+				return Page();
+			}
 			catch (Exception ex)
 			{
 				new Log().Create(LogType.Error, "RecordRelatedRecordManagePageModel Error on POST", ex);
+				Validation.Message = ex.Message;
 				BeforeRender();
 				return Page();
 			}

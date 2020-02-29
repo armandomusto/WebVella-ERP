@@ -39,9 +39,8 @@ namespace WebVella.Erp.Plugins.SDK.Pages.Application
 
 		public List<string> LocalNav { get; set; } = new List<string>();
 
-		public void PageInit() {
-			Init();
-
+		public void PageInit() 
+		{
 			#region << Init App >>
 			var appServ = new AppService();
 			App = appServ.GetApplication(RecordId ?? Guid.Empty);
@@ -80,16 +79,25 @@ namespace WebVella.Erp.Plugins.SDK.Pages.Application
 
 		public IActionResult OnGet()
 		{
+			var initResult = Init();
+			if (initResult != null)
+				return initResult;
+
 			PageInit();
 			if (App == null)
 				return NotFound();
 
 			ErpRequestContext.PageContext = PageContext;
+			BeforeRender();
 			return Page();
 		}
 
 		public IActionResult OnPost()
 		{
+			var initResult = Init();
+			if (initResult != null)
+				return initResult;
+
 			PageInit();
 			if (App == null)
 				return NotFound();
@@ -115,6 +123,7 @@ namespace WebVella.Erp.Plugins.SDK.Pages.Application
 
 
 			ErpRequestContext.PageContext = PageContext;
+			BeforeRender();
 			return Page();
 		}
 

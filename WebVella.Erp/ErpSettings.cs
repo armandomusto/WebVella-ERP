@@ -9,7 +9,8 @@ namespace WebVella.Erp
 		public static string ConnectionString { get; private set; }
 		public static string Lang { get; private set; }
         public static string Locale { get; private set; }
-		public static bool EnableBackgroungJobs { get; private set; }
+        public static string CacheKey { get; private set; }
+        public static bool EnableBackgroungJobs { get; private set; }
 		public static bool EnableFileSystemStorage { get; private set; }
 		public static string FileSystemStorageFolder { get; set; }
         public static string DevelopmentTestEntityName { get; set; }
@@ -27,7 +28,12 @@ namespace WebVella.Erp
         public static string EmailFrom { get; private set; }
         public static string EmailTo { get; private set; }
 
-		public static bool ShowAccounting { get; set; }
+        public static string NavLogoUrl { get; private set; }
+        public static string SystemMasterBackgroundImageUrl { get; private set; }
+        public static string AppName { get; private set; }
+
+        public static bool ShowAccounting { get; set; }
+		public static bool DevelopmentMode { get; private set; }
 
 		//API URLs
 		public static string ApiUrlTemplateFieldInlineEdit { get; private set; }
@@ -43,6 +49,8 @@ namespace WebVella.Erp
 			JsonDateTimeFormat = string.IsNullOrWhiteSpace(configuration["Settings:JsonDateTimeFormat"]) ? "yyyy-MM-ddTHH:mm:ss.fff" : configuration["Settings:JsonDateTimeFormat"];
 
             Locale = string.IsNullOrWhiteSpace(configuration["Settings:Locale"]) ? "en-US" : configuration["Settings:Locale"];
+            CacheKey = string.IsNullOrWhiteSpace(configuration["Settings:CacheKey"]) ? $"{DateTime.Now.ToString("yyyyMMdd")}" : configuration["Settings:CacheKey"];
+
             EnableFileSystemStorage = string.IsNullOrWhiteSpace(configuration["Settings:EnableFileSystemStorage"]) ? false : bool.Parse(configuration["Settings:EnableFileSystemStorage"]);
 			FileSystemStorageFolder = string.IsNullOrWhiteSpace(configuration["Settings:FileSystemStorageFolder"]) ? @"c:\erp-files" : configuration["Settings:FileSystemStorageFolder"];
 			EnableBackgroungJobs = string.IsNullOrWhiteSpace(configuration["Settings:EnableBackgroungJobs"]) ? true : bool.Parse(configuration["Settings:EnableBackgroungJobs"]);
@@ -64,7 +72,14 @@ namespace WebVella.Erp
             EmailFrom = configuration[$"Settings:EmailFrom"];
             EmailTo = configuration[$"Settings:EmailTo"];
 
+            NavLogoUrl = configuration[$"Settings:NavLogoUrl"];
+            SystemMasterBackgroundImageUrl = configuration[$"Settings:SystemMasterBackgroundImageUrl"];
+            AppName = configuration[$"Settings:AppName"];
+
+            DevelopmentMode = string.IsNullOrWhiteSpace(configuration[$"Settings:DevelopmentMode"]) ? false : bool.Parse(configuration[$"Settings:DevelopmentMode"]);
+
 			ShowAccounting = string.IsNullOrWhiteSpace(configuration[$"Settings:ShowAccounting"]) ? false : bool.Parse(configuration[$"Settings:ShowAccounting"]);
+			
 
 			ApiUrlTemplateFieldInlineEdit = string.IsNullOrWhiteSpace(configuration[$"ApiUrlTemplates:FieldInlineEdit"]) ? "/api/v3/en_US/record/{entityName}/{recordId}" : configuration[$"ApiUrlTemplates:FieldInlineEdit"];
 		}

@@ -18,24 +18,27 @@ namespace WebVella.Erp.Plugins.SDK.Pages.Role
 		[BindProperty]
 		public string Description { get; set; } = "";
 
-		private void InitPage()
-		{
-			Init();
-			if (string.IsNullOrWhiteSpace(ReturnUrl)) ReturnUrl = "/sdk/access/role/l/list";
-		}
-
 		public IActionResult OnGet()
 		{
-			InitPage();
+			var initResult = Init();
+			if (initResult != null)
+				return initResult;
+
+			if (string.IsNullOrWhiteSpace(ReturnUrl)) ReturnUrl = "/sdk/access/role/l/list";
+
+			BeforeRender();
 			return Page();
 		}
-
 
 		public IActionResult OnPost()
 		{
 			if (!ModelState.IsValid) throw new Exception("Antiforgery check failed.");
 
-			InitPage();
+			var initResult = Init();
+			if (initResult != null)
+				return initResult;
+
+			if (string.IsNullOrWhiteSpace(ReturnUrl)) ReturnUrl = "/sdk/access/role/l/list";
 
 			try
 			{
@@ -44,13 +47,14 @@ namespace WebVella.Erp.Plugins.SDK.Pages.Role
 				newRole.Name = Name;
 				newRole.Description = Description;
 				new SecurityManager().SaveRole(newRole);
-
+				BeforeRender();
 				return Redirect(ReturnUrl);
 			}
 			catch (ValidationException ex)
 			{
 				Validation.Message = ex.Message;
 				Validation.Errors = ex.Errors;
+				BeforeRender();
 				return Page();
 			}
 		}

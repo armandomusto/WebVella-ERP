@@ -21,6 +21,8 @@ namespace WebVella.Erp.Web.Components
 
 		public class PcValidationOptions
 		{
+			[JsonProperty(PropertyName = "is_visible")]
+			public string IsVisible { get; set; } = "";
 
 			[JsonProperty(PropertyName = "validation")]
 			public string Validation { get; set; } = "";
@@ -34,7 +36,7 @@ namespace WebVella.Erp.Web.Components
 				#region << Init >>
 				if (context.Node == null)
 				{
-					return await Task.FromResult<IViewComponentResult>(Content("Error: The node Id is required to be set as query param 'nid', when requesting this component"));
+					return await Task.FromResult<IViewComponentResult>(Content("Error: The node Id is required to be set as query parameter 'nid', when requesting this component"));
 				}
 
 				var pageFromModel = context.DataModel.GetProperty("Page");
@@ -58,9 +60,12 @@ namespace WebVella.Erp.Web.Components
 				}
 
 				var componentMeta = new PageComponentLibraryService().GetComponentMeta(context.Node.ComponentName);
-				#endregion
+                #endregion
 
-				ViewBag.Validation = context.DataModel.GetPropertyValueByDataSource(options.Validation) as ValidationException;
+                if (String.IsNullOrWhiteSpace(options.Validation)) {
+                    options.Validation = "Validation";
+                }
+
 
 				ViewBag.Options = options;
 				ViewBag.Node = context.Node;
@@ -69,7 +74,27 @@ namespace WebVella.Erp.Web.Components
 				ViewBag.AppContext = ErpAppContext.Current;
 				ViewBag.ComponentContext = context;
 
-				switch (context.Mode)
+                if (context.Mode != ComponentMode.Options && context.Mode != ComponentMode.Help)
+                {
+                    var isVisible = true;
+                    var isVisibleDS = context.DataModel.GetPropertyValueByDataSource(options.IsVisible);
+                    if (isVisibleDS is string && !String.IsNullOrWhiteSpace(isVisibleDS.ToString()))
+                    {
+                        if (Boolean.TryParse(isVisibleDS.ToString(), out bool outBool))
+                        {
+                            isVisible = outBool;
+                        }
+                    }
+                    else if (isVisibleDS is Boolean)
+                    {
+                        isVisible = (bool)isVisibleDS;
+                    }
+                    ViewBag.IsVisible = isVisible;
+
+                    ViewBag.Validation = context.DataModel.GetPropertyValueByDataSource(options.Validation) as ValidationException;
+                }
+
+                switch (context.Mode)
 				{
 					case ComponentMode.Display:
 						return await Task.FromResult<IViewComponentResult>(View("Display"));

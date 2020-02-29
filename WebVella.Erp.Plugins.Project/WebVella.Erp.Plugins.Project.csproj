@@ -1,10 +1,16 @@
-<Project Sdk="Microsoft.NET.Sdk.Razor">
+﻿<Project Sdk="Microsoft.NET.Sdk.Razor">
 
   <PropertyGroup>
-   <TargetFramework>netcoreapp2.2</TargetFramework>
+   <TargetFramework>netcoreapp3.1</TargetFramework>
+	 <AddRazorSupportForMvc>true</AddRazorSupportForMvc>
   </PropertyGroup>
 
+	<ItemGroup>
+		<FrameworkReference Include="Microsoft.AspNetCore.App" />
+	</ItemGroup>
+	
   <ItemGroup>
+    <None Remove="Components\PcTaskRepeatRecurrenceSet\service.js" />
     <None Remove="Components\PcFeedList\service.js" />
     <None Remove="Components\PcPostList\service.js" />
     <None Remove="Components\PcProjectWidgetBudgetChart\service.js" />
@@ -21,6 +27,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <EmbeddedResource Include="Components\PcTaskRepeatRecurrenceSet\service.js" />
     <EmbeddedResource Include="Components\PcFeedList\service.js" />
     <EmbeddedResource Include="Components\PcPostList\service.js" />
     <EmbeddedResource Include="Components\PcProjectWidgetBudgetChart\service.js" />
@@ -41,7 +48,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.AspNetCore.Mvc" Version="2.2.0" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.NewtonsoftJson" Version="3.1.1" />
   </ItemGroup>
 
   <ItemGroup>

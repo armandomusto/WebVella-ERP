@@ -12,6 +12,7 @@ using WebVella.Erp.Plugins.Project.Services;
 using WebVella.Erp.Web;
 using WebVella.Erp.Web.Models;
 using WebVella.Erp.Web.Services;
+using WebVella.TagHelpers.Models;
 
 namespace WebVella.Erp.Plugins.Project.Components
 {
@@ -84,7 +85,7 @@ namespace WebVella.Erp.Plugins.Project.Components
 					Guid? userId = context.DataModel.GetPropertyValueByDataSource(options.UserId) as Guid?;
 
 
-					var projectTasks = new TaskService().GetTaskQueue(projectId, userId, TasksDueType.StartDateDue);
+					var projectTasks = new TaskService().GetTaskQueue(projectId, userId, TasksDueType.StartTimeDue);
 					int lowPriority = 0;
 					int normalPriority = 0;
 					int highPriority = 0;
@@ -109,8 +110,8 @@ namespace WebVella.Erp.Plugins.Project.Components
 
 
 					var theme = new Theme();
-					var chartDatasets = new List<ErpChartDataset>() {
-						new ErpChartDataset(){
+					var chartDatasets = new List<WvChartDataset>() {
+						new WvChartDataset(){
 							Data = new List<decimal>(){ highPriority, normalPriority, lowPriority },
 							BackgroundColor = new List<string>{ theme.RedColor, theme.LightBlueColor, theme.GreenColor},
 							BorderColor = new List<string>{ theme.RedColor, theme.LightBlueColor, theme.GreenColor }

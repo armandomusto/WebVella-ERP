@@ -35,11 +35,10 @@ namespace WebVella.Erp.Plugins.SDK.Pages.ErpDataSource
 
 		public void InitPage()
 		{
-			Init();
 
 			HeaderActions.AddRange(new List<string>() {
 
-				PageUtils.GetActionTemplate(PageUtilsActionType.SubmitForm, label: "Create Data Source",formId:"CreateRecord", btnClass:"btn btn-green btn-sm", iconClass:"ti-plus"),
+				PageUtils.GetActionTemplate(PageUtilsActionType.SubmitForm, label: "Create Data Source",formId:"CreateRecord", btnClass:"btn btn-green btn-sm", iconClass:"fa fa-plus"),
 				PageUtils.GetActionTemplate(PageUtilsActionType.Cancel, returnUrl: ReturnUrl)
 			});
 
@@ -47,15 +46,25 @@ namespace WebVella.Erp.Plugins.SDK.Pages.ErpDataSource
 
 		public IActionResult OnGet()
         {
+			var initResult = Init();
+			if (initResult != null)
+				return initResult;
+
 			InitPage();
 
 			ErpRequestContext.PageContext = PageContext;
+
+			BeforeRender();
 			return Page();
 		}
 
 		public IActionResult OnPost()
 		{
 			if (!ModelState.IsValid) throw new Exception("Antiforgery check failed.");
+
+			var initResult = Init();
+			if (initResult != null)
+				return initResult;
 
 			InitPage();
 		
@@ -87,6 +96,8 @@ namespace WebVella.Erp.Plugins.SDK.Pages.ErpDataSource
 			}
 
 			ErpRequestContext.PageContext = PageContext;
+
+			BeforeRender();
 			return Page();
 		}
 

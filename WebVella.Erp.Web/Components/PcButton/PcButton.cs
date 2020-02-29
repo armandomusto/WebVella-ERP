@@ -8,10 +8,11 @@ using WebVella.Erp.Exceptions;
 using WebVella.Erp.Web.Models;
 using WebVella.Erp.Web.Services;
 using WebVella.Erp.Web.Utils;
+using WebVella.TagHelpers.Models;
 
 namespace WebVella.Erp.Web.Components
 {
-	[PageComponent(Label = "Button", Library = "WebVella", Description = "Renderes a button", Version = "0.0.1", IconClass = "far fa-caret-square-right", IsInline = true)]
+	[PageComponent(Label = "Button", Library = "WebVella", Description = "Renders a button", Version = "0.0.1", IconClass = "far fa-caret-square-right", IsInline = true)]
 	public class PcButton : PageComponent
 	{
 		protected ErpRequestContext ErpRequestContext { get; set; }
@@ -23,9 +24,11 @@ namespace WebVella.Erp.Web.Components
 
 		public class PcButtonOptions
 		{
+			[JsonProperty(PropertyName = "is_visible")]
+			public string IsVisible { get; set; } = "";
 
 			[JsonProperty(PropertyName = "type")]
-			public ButtonType Type { get; set; } = ButtonType.Button;
+			public WvButtonType Type { get; set; } = WvButtonType.Button;
 
 			[JsonProperty(PropertyName = "is_outline")]
 			public bool isOutline { get; set; } = false;
@@ -40,10 +43,10 @@ namespace WebVella.Erp.Web.Components
 			public bool isDisabled { get; set; } = false;
 
 			[JsonProperty(PropertyName = "color")]
-			public ErpColor Color { get; set; } = ErpColor.White;
+			public WvColor Color { get; set; } = WvColor.White;
 
 			[JsonProperty(PropertyName = "size")]
-			public CssSize Size { get; set; } = CssSize.Inherit;
+			public WvCssSize Size { get; set; } = WvCssSize.Inherit;
 
 			[JsonProperty(PropertyName = "class")]
 			public string Class { get; set; } = "";
@@ -66,7 +69,10 @@ namespace WebVella.Erp.Web.Components
 			[JsonProperty(PropertyName = "icon_class")]
 			public string IconClass { get; set; } = "";
 
-			[JsonProperty(PropertyName = "form")]
+            [JsonProperty(PropertyName = "icon_right")]
+            public bool IconRight { get; set; } = false;
+
+            [JsonProperty(PropertyName = "form")]
 			public string Form { get; set; } = "";
 
 		}
@@ -79,7 +85,7 @@ namespace WebVella.Erp.Web.Components
 				#region << Init >>
 				if (context.Node == null)
 				{
-					return await Task.FromResult<IViewComponentResult>(Content("Error: The node Id is required to be set as query param 'nid', when requesting this component"));
+					return await Task.FromResult<IViewComponentResult>(Content("Error: The node Id is required to be set as query parameter 'nid', when requesting this component"));
 				}
 
 				var pageFromModel = context.DataModel.GetProperty("Page");
@@ -94,36 +100,58 @@ namespace WebVella.Erp.Web.Components
 
 				if (currentPage == null)
 				{
-					return await Task.FromResult<IViewComponentResult>(Content("Error: The page Id is required to be set as query param 'pid', when requesting this component"));
+					return await Task.FromResult<IViewComponentResult>(Content("Error: The page Id is required to be set as query parameter 'pid', when requesting this component"));
 				}
 
-				var instanceOptions = new PcButtonOptions();
+				var options = new PcButtonOptions();
 				if (context.Options != null)
 				{
-					instanceOptions = JsonConvert.DeserializeObject<PcButtonOptions>(context.Options.ToString());
+					options = JsonConvert.DeserializeObject<PcButtonOptions>(context.Options.ToString());
 				}
 
 				var componentMeta = new PageComponentLibraryService().GetComponentMeta(context.Node.ComponentName);
 				#endregion
 
-
-				ViewBag.Options = instanceOptions;
+                ViewBag.Options = options;
 				ViewBag.Node = context.Node;
 				ViewBag.ComponentMeta = componentMeta;
 				ViewBag.RequestContext = ErpRequestContext;
 				ViewBag.AppContext = ErpAppContext.Current;
-				ViewBag.ProcessedHref = context.DataModel.GetPropertyValueByDataSource(instanceOptions.Href);
 
-				#region << Select options >>
-				ViewBag.CssSize = ModelExtensions.GetEnumAsSelectOptions<CssSize>(); 
+                if (context.Mode != ComponentMode.Options && context.Mode != ComponentMode.Help)
+                {
+                    var isVisible = true;
+                    var isVisibleDS = context.DataModel.GetPropertyValueByDataSource(options.IsVisible);
+                    if (isVisibleDS is string && !String.IsNullOrWhiteSpace(isVisibleDS.ToString()))
+                    {
+                        if (Boolean.TryParse(isVisibleDS.ToString(), out bool outBool))
+                        {
+                            isVisible = outBool;
+                        }
+                    }
+                    else if (isVisibleDS is Boolean)
+                    {
+                        isVisible = (bool)isVisibleDS;
+                    }
+                    ViewBag.IsVisible = isVisible;
 
-				ViewBag.ColorOptions = ModelExtensions.GetEnumAsSelectOptions<ErpColor>().OrderBy(x=> x.Label).ToList();
+                    options.Text = context.DataModel.GetPropertyValueByDataSource(options.Text) as string;
+                    options.Class = context.DataModel.GetPropertyValueByDataSource(options.Class) as string;
+                    options.IconClass = context.DataModel.GetPropertyValueByDataSource(options.IconClass) as string;
+					options.OnClick = context.DataModel.GetPropertyValueByDataSource(options.OnClick) as string;
 
-				ViewBag.TypeOptions = ModelExtensions.GetEnumAsSelectOptions<ButtonType>(); 
+					ViewBag.ProcessedHref = context.DataModel.GetPropertyValueByDataSource(options.Href);
 
-				#endregion
+                }
+                #region << Select options >>
+                ViewBag.CssSize = WebVella.TagHelpers.Utilities.ModelExtensions.GetEnumAsSelectOptions<WvCssSize>();
 
-				switch (context.Mode)
+                ViewBag.ColorOptions = WebVella.TagHelpers.Utilities.ModelExtensions.GetEnumAsSelectOptions<WvColor>().OrderBy(x => x.Label).ToList();
+
+                ViewBag.TypeOptions = WebVella.TagHelpers.Utilities.ModelExtensions.GetEnumAsSelectOptions<WvButtonType>();
+
+                #endregion
+                switch (context.Mode)
 				{
 					case ComponentMode.Display:
 						return await Task.FromResult<IViewComponentResult>(View("Display"));

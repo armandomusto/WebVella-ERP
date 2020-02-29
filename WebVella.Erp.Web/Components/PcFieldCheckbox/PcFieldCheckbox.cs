@@ -1,13 +1,11 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Newtonsoft.Json;
 using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Threading.Tasks;
-using WebVella.Erp.Api.Models;
 using WebVella.Erp.Exceptions;
 using WebVella.Erp.Web.Models;
 using WebVella.Erp.Web.Services;
+using WebVella.TagHelpers.Models;
 
 namespace WebVella.Erp.Web.Components
 {
@@ -33,6 +31,7 @@ namespace WebVella.Erp.Web.Components
 			{
 				return new PcFieldCheckboxOptions
 				{
+					IsVisible = input.IsVisible,
 					LabelMode = input.LabelMode,
 					LabelText = input.LabelText,
 					Mode = input.Mode,
@@ -51,7 +50,7 @@ namespace WebVella.Erp.Web.Components
 				#region << Init >>
 				if (context.Node == null)
 				{
-					return await Task.FromResult<IViewComponentResult>(Content("Error: The node Id is required to be set as query param 'nid', when requesting this component"));
+					return await Task.FromResult<IViewComponentResult>(Content("Error: The node Id is required to be set as query parameter 'nid', when requesting this component"));
 				}
 
 				var pageFromModel = context.DataModel.GetProperty("Page");
@@ -69,10 +68,10 @@ namespace WebVella.Erp.Web.Components
 				}
 
 				var baseOptions = InitPcFieldBaseOptions(context);
-				var instanceOptions = PcFieldCheckboxOptions.CopyFromBaseOptions(baseOptions);
+				var options = PcFieldCheckboxOptions.CopyFromBaseOptions(baseOptions);
 				if (context.Options != null)
 				{
-					instanceOptions = JsonConvert.DeserializeObject<PcFieldCheckboxOptions>(context.Options.ToString());
+					options = JsonConvert.DeserializeObject<PcFieldCheckboxOptions>(context.Options.ToString());
 					////Check for connection to entity field
 					//if (instanceOptions.TryConnectToEntity)
 					//{
@@ -90,30 +89,73 @@ namespace WebVella.Erp.Web.Components
 					//}
 				}
 				var modelFieldLabel = "";
-				var model = (PcFieldBaseModel)InitPcFieldBaseModel(context, instanceOptions, label: out modelFieldLabel);
-				if (String.IsNullOrWhiteSpace(instanceOptions.LabelText))
+				var model = (PcFieldBaseModel)InitPcFieldBaseModel(context, options, label: out modelFieldLabel);
+				if (String.IsNullOrWhiteSpace(options.LabelText) && context.Mode != ComponentMode.Options)
 				{
-					instanceOptions.LabelText = modelFieldLabel;
+					options.LabelText = modelFieldLabel;
 				}
 
 				//Implementing Inherit label mode
-				ViewBag.LabelMode = instanceOptions.LabelMode;
-				ViewBag.Mode = instanceOptions.Mode;
+				ViewBag.LabelMode = options.LabelMode;
+				ViewBag.Mode = options.Mode;
 
-				if (instanceOptions.LabelMode == LabelRenderMode.Undefined && baseOptions.LabelMode != LabelRenderMode.Undefined)
+				if (options.LabelMode == WvLabelRenderMode.Undefined && baseOptions.LabelMode != WvLabelRenderMode.Undefined)
 					ViewBag.LabelMode = baseOptions.LabelMode;
 
-				if (instanceOptions.Mode == FieldRenderMode.Undefined && baseOptions.Mode != FieldRenderMode.Undefined)
+				if (options.Mode == WvFieldRenderMode.Undefined && baseOptions.Mode != WvFieldRenderMode.Undefined)
 					ViewBag.Mode = baseOptions.Mode;
 
 
 				var componentMeta = new PageComponentLibraryService().GetComponentMeta(context.Node.ComponentName);
+
+				var accessOverride = context.DataModel.GetPropertyValueByDataSource(options.AccessOverrideDs) as WvFieldAccess?;
+				if(accessOverride != null){
+					model.Access = accessOverride.Value;
+				}
+				var requiredOverride = context.DataModel.GetPropertyValueByDataSource(options.RequiredOverrideDs) as bool?;
+				if(requiredOverride != null){
+					model.Required = requiredOverride.Value;
+				}
+				else{
+					if(!String.IsNullOrWhiteSpace(options.RequiredOverrideDs)){
+						if(options.RequiredOverrideDs.ToLowerInvariant() == "true"){
+							model.Required = true;
+						}
+						else if(options.RequiredOverrideDs.ToLowerInvariant() == "false"){
+							model.Required = false;
+						}
+					}
+				}
 				#endregion
 
-				#region << Init DataSources >>
+
+
+				ViewBag.Options = options;
+				ViewBag.Model = model;
+				ViewBag.Node = context.Node;
+				ViewBag.ComponentMeta = componentMeta;
+				ViewBag.RequestContext = ErpRequestContext;
+				ViewBag.AppContext = ErpAppContext.Current;
+
 				if (context.Mode != ComponentMode.Options && context.Mode != ComponentMode.Help)
 				{
-					dynamic valueResult = context.DataModel.GetPropertyValueByDataSource(instanceOptions.Value);
+					var isVisible = true;
+					var isVisibleDS = context.DataModel.GetPropertyValueByDataSource(options.IsVisible);
+					if (isVisibleDS is string && !String.IsNullOrWhiteSpace(isVisibleDS.ToString()))
+					{
+						if (Boolean.TryParse(isVisibleDS.ToString(), out bool outBool))
+						{
+							isVisible = outBool;
+						}
+					}
+					else if (isVisibleDS is Boolean)
+					{
+						isVisible = (bool)isVisibleDS;
+					}
+					ViewBag.IsVisible = isVisible;
+
+					#region << Init DataSources >>
+					dynamic valueResult = context.DataModel.GetPropertyValueByDataSource(options.Value);
 					if (valueResult == null)
 					{
 						model.Value = false;
@@ -134,21 +176,14 @@ namespace WebVella.Erp.Web.Components
 						{
 							model.Value = true;
 						}
-						else {
+						else
+						{
 							model.Value = false;
 						}
 					}
+					#endregion
 				}
 
-				#endregion
-
-
-				ViewBag.Options = instanceOptions;
-				ViewBag.Model = model;
-				ViewBag.Node = context.Node;
-				ViewBag.ComponentMeta = componentMeta;
-				ViewBag.RequestContext = ErpRequestContext;
-				ViewBag.AppContext = ErpAppContext.Current;
 
 				switch (context.Mode)
 				{

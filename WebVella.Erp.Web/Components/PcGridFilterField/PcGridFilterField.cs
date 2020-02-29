@@ -24,6 +24,9 @@ namespace WebVella.Erp.Web.Components
 
 		public class PcGridFilterFieldOptions
 		{
+			[JsonProperty(PropertyName = "is_visible")]
+			public string IsVisible { get; set; } = "";
+
 			[JsonProperty(PropertyName = "name")]
 			public string Name { get; set; } = "field";
 
@@ -40,7 +43,7 @@ namespace WebVella.Erp.Web.Components
 			public FilterType QueryType { get; set; } = FilterType.CONTAINS;  //will be overrided with Url Query name: q_fieldName_t
 
 			[JsonProperty(PropertyName = "query_options")]
-			public List<FilterType> QueryOptions { get; set; } = new List<FilterType>(); //if not set will be inited with default set
+			public List<FilterType> QueryOptions { get; set; } = new List<FilterType>(); //if not set will be initialized with default set
 
 			[JsonProperty(PropertyName = "prefix")]
 			public string Prefix { get; set; } = "";
@@ -54,7 +57,7 @@ namespace WebVella.Erp.Web.Components
 				#region << Init >>
 				if (context.Node == null)
 				{
-					return await Task.FromResult<IViewComponentResult>(Content("Error: The node Id is required to be set as query param 'nid', when requesting this component"));
+					return await Task.FromResult<IViewComponentResult>(Content("Error: The node Id is required to be set as query parameter 'nid', when requesting this component"));
 				}
 
 				var pageFromModel = context.DataModel.GetProperty("Page");
@@ -81,14 +84,35 @@ namespace WebVella.Erp.Web.Components
 
 				#endregion
 
-
 				ViewBag.Options = options;
 				ViewBag.Node = context.Node;
 				ViewBag.ComponentMeta = componentMeta;
 				ViewBag.RequestContext = ErpRequestContext;
 				ViewBag.AppContext = ErpAppContext.Current;
 				ViewBag.ComponentContext = context;
-				if (options.QueryOptions == null)
+
+                if (context.Mode != ComponentMode.Options && context.Mode != ComponentMode.Help)
+                {
+                    var isVisible = true;
+                    var isVisibleDS = context.DataModel.GetPropertyValueByDataSource(options.IsVisible);
+                    if (isVisibleDS is string && !String.IsNullOrWhiteSpace(isVisibleDS.ToString()))
+                    {
+                        if (Boolean.TryParse(isVisibleDS.ToString(), out bool outBool))
+                        {
+                            isVisible = outBool;
+                        }
+                    }
+                    else if (isVisibleDS is Boolean)
+                    {
+                        isVisible = (bool)isVisibleDS;
+                    }
+                    if (!isVisible && context.Mode == ComponentMode.Display)
+                        return await Task.FromResult<IViewComponentResult>(Content(""));
+
+
+                }
+
+                if (options.QueryOptions == null)
 					options.QueryOptions = new List<FilterType>();
 
 				var selectedQueryOptionsConverted = new List<string>();

@@ -2,13 +2,14 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
-using WebVella.Erp.Api.Models;
-using WebVella.Erp.Web.Models;
-using WebVella.Erp.Web.Utils;
-using WebVella.Erp.Exceptions;
 using System.Linq;
-using WebVella.Erp.Web.Services;
 using WebVella.Erp.Api;
+using WebVella.Erp.Api.Models;
+using WebVella.Erp.Exceptions;
+using WebVella.Erp.Web.Models;
+using WebVella.Erp.Web.Services;
+using WebVella.Erp.Web.Utils;
+using WebVella.TagHelpers.Models;
 
 namespace WebVella.Erp.Web.Components
 {
@@ -17,9 +18,12 @@ namespace WebVella.Erp.Web.Components
 
 		public class PcFieldBaseOptions
 		{
+			[JsonProperty(PropertyName = "is_visible")]
+			public string IsVisible { get; set; } = "";
+
 			//Label
 			[JsonProperty(PropertyName = "label_mode")]
-			public LabelRenderMode LabelMode { get; set; } = LabelRenderMode.Undefined;
+			public WvLabelRenderMode LabelMode { get; set; } = WvLabelRenderMode.Undefined;
 
 			[JsonProperty(PropertyName = "label_text")]
 			public string LabelText { get; set; } = "";
@@ -29,13 +33,50 @@ namespace WebVella.Erp.Web.Components
 			public string Name { get; set; } = "field";
 
 			[JsonProperty(PropertyName = "mode")]
-			public FieldRenderMode Mode { get; set; } = FieldRenderMode.Undefined;
+			public WvFieldRenderMode Mode { get; set; } = WvFieldRenderMode.Undefined;
 
 			[JsonProperty(PropertyName = "value")]
 			public string Value { get; set; } = "";
 
 			[JsonProperty(PropertyName = "connected_entity_id")]
 			public Guid? ConnectedEntityId { get; set; } = null;
+
+			[JsonProperty(PropertyName = "connected_record_id_ds")]
+			public string ConnectedRecordIdDs { get; set; } = null;
+
+			[JsonProperty(PropertyName = "access_override_ds")]
+			public string AccessOverrideDs { get; set; } = "";
+
+			[JsonProperty(PropertyName = "required_override_ds")]
+			public string RequiredOverrideDs { get; set; } = ""; // bool? -> null - apply as in meta, true, false
+
+			[JsonProperty(PropertyName = "ajax_api_url_ds")]
+			public string AjaxApiUrlDs { get; set; } = null;
+
+			[JsonProperty(PropertyName = "class")]
+			public string Class { get; set; } = "";
+
+			//Field specific options
+			[JsonProperty(PropertyName = "template")]
+			public string Template { get; set; } = "";
+
+			[JsonProperty(PropertyName = "currency_code")]
+			public string CurrencyCode { get; set; } = "USD";
+
+			[JsonProperty(PropertyName = "maxlength")]
+			public int? MaxLength { get; set; } = null;
+
+			[JsonProperty(PropertyName = "min")]
+			public decimal? Min { get; set; } = null;
+
+			[JsonProperty(PropertyName = "max")]
+			public decimal? Max { get; set; } = null;
+
+			[JsonProperty(PropertyName = "step")]
+			public decimal? Step { get; set; } = null;
+
+			[JsonProperty(PropertyName = "decimal_digits")]
+			public int DecimalDigits { get; set; } = 2;
 
 		}
 
@@ -67,7 +108,7 @@ namespace WebVella.Erp.Web.Components
 			public object DefaultValue { get; set; } = null;
 
 			[JsonProperty(PropertyName = "access")]
-			public FieldAccess Access { get; set; } = FieldAccess.Full;
+			public WvFieldAccess Access { get; set; } = WvFieldAccess.Full;
 
 			[JsonProperty(PropertyName = "init_errors")]
 			public List<string> InitErrors { get; set; } = new List<string>();
@@ -104,11 +145,12 @@ namespace WebVella.Erp.Web.Components
 
 			public CultureInfo Culture { get; set; } = new CultureInfo("en-US");
 
-			public List<SelectOption> LabelRenderModeOptions { get; set; } = new List<SelectOption>();
+			public List<WvSelectOption> LabelRenderModeOptions { get; set; } = new List<WvSelectOption>();
 
-			public List<SelectOption> FieldRenderModeOptions { get; set; } = new List<SelectOption>();
+			public List<WvSelectOption> FieldRenderModeOptions { get; set; } = new List<WvSelectOption>();
 
 			public List<SelectOption> EntitySelectOptions { get; set; } = new List<SelectOption>();
+
 		}
 
 		public class PcFieldSelectModel : PcFieldBaseModel
@@ -194,7 +236,7 @@ namespace WebVella.Erp.Web.Components
 			[JsonProperty(PropertyName = "options")]
 			public List<SelectOption> Options { get; set; } = new List<SelectOption>();
 
-			public static PcFieldCheckboxListModel CopyFromBaseModel(PcFieldBaseModel input,List<SelectOption> options)
+			public static PcFieldCheckboxListModel CopyFromBaseModel(PcFieldBaseModel input, List<SelectOption> options)
 			{
 				return new PcFieldCheckboxListModel
 				{
@@ -305,30 +347,151 @@ namespace WebVella.Erp.Web.Components
 			var options = new PcFieldBaseOptions();
 
 			//Check if it is defined in form group
-			if (context.Items.ContainsKey(typeof(LabelRenderMode)))
+			if (context.Items.ContainsKey(typeof(WvLabelRenderMode)))
 			{
-				options.LabelMode = (LabelRenderMode)context.Items[typeof(LabelRenderMode)];
+				options.LabelMode = (WvLabelRenderMode)context.Items[typeof(WvLabelRenderMode)];
 			}
 			else
 			{
-				options.LabelMode = LabelRenderMode.Stacked;
+				options.LabelMode = WvLabelRenderMode.Stacked;
 			}
 
 
 			//Check if it is defined in form group
-			if (context.Items.ContainsKey(typeof(FieldRenderMode)))
+			if (context.Items.ContainsKey(typeof(WvFieldRenderMode)))
 			{
-				options.Mode = (FieldRenderMode)context.Items[typeof(FieldRenderMode)];
+				options.Mode = (WvFieldRenderMode)context.Items[typeof(WvFieldRenderMode)];
 			}
 			else
 			{
-				options.Mode = FieldRenderMode.Form;
+				options.Mode = WvFieldRenderMode.Form;
+			}
+
+			var baseOptions = JsonConvert.DeserializeObject<PcFieldBaseOptions>(context.Options.ToString());
+
+			Entity mappedEntity = null;
+			var entity = context.DataModel.GetProperty("Entity");
+			if (baseOptions.ConnectedEntityId != null)
+			{
+				mappedEntity = new EntityManager().ReadEntity(baseOptions.ConnectedEntityId.Value).Object;
+			}
+			else if (baseOptions.ConnectedEntityId == null && entity is Entity)
+			{
+				mappedEntity = (Entity)entity;
+			}
+
+			if (mappedEntity != null)
+			{
+				var fieldName = baseOptions.Name;
+
+				EntityRelation relation = null;
+				if (fieldName.StartsWith("$")) {
+					//Field with relation is set. Mapped entity should be changed
+					var fieldNameArray = fieldName.Replace("$", "").Split(".", StringSplitOptions.RemoveEmptyEntries);
+					if (fieldNameArray.Length == 2) {
+						var relationName = fieldNameArray[0];
+						fieldName = fieldNameArray[1];
+						relation = new EntityRelationManager().Read(relationName).Object;
+						if (relation != null) {
+							if (relation.OriginEntityId == mappedEntity.Id)
+								mappedEntity = new EntityManager().ReadEntity(relation.TargetEntityId).Object;
+							else if (relation.TargetEntityId == mappedEntity.Id)
+								mappedEntity = new EntityManager().ReadEntity(relation.OriginEntityId).Object;
+						}
+
+					}
+
+				}
+
+				var entityField = mappedEntity.Fields.FirstOrDefault(x => x.Name == fieldName);
+
+				//for many to many relation field is always ID and that is not correct
+				//so hide this field meta as field is not found
+				if (relation != null && relation.RelationType == EntityRelationType.ManyToMany)
+					entityField = null;
+
+				if (entityField != null)
+				{
+					switch (entityField.GetFieldType())
+					{
+						case FieldType.AutoNumberField:
+							{
+								var fieldMeta = (AutoNumberField)entityField;
+								options.Template = fieldMeta.DisplayFormat;
+							}
+							break;
+						case FieldType.CurrencyField:
+							{
+								var fieldMeta = (CurrencyField)entityField;
+								options.Min = fieldMeta.MinValue;
+								options.Min = fieldMeta.MinValue;
+								options.CurrencyCode = fieldMeta.Currency.Code;
+							}
+							break;
+						case FieldType.EmailField:
+							{
+								var fieldMeta = (EmailField)entityField;
+								options.MaxLength = fieldMeta.MaxLength;
+							}
+							break;
+						case FieldType.NumberField:
+							{
+								var fieldMeta = (NumberField)entityField;
+								options.Min = fieldMeta.MinValue;
+								options.Min = fieldMeta.MinValue;
+								if (fieldMeta.DecimalPlaces != null)
+								{
+									if (int.TryParse(fieldMeta.DecimalPlaces.ToString(), out int outInt))
+									{
+										options.DecimalDigits = outInt;
+									}
+								}
+							}
+							break;
+						case FieldType.PasswordField:
+							{
+								var fieldMeta = (PasswordField)entityField;
+								options.Min = (decimal?)fieldMeta.MinLength;
+								options.Max = (decimal?)fieldMeta.MaxLength;
+							}
+							break;
+						case FieldType.PercentField:
+							{
+								var fieldMeta = (PercentField)entityField;
+								options.Min = fieldMeta.MinValue;
+								options.Min = fieldMeta.MinValue;
+								if (fieldMeta.DecimalPlaces != null)
+								{
+									if (int.TryParse(fieldMeta.DecimalPlaces.ToString(), out int outInt))
+									{
+										options.DecimalDigits = outInt;
+									}
+								}
+							}
+							break;
+						case FieldType.PhoneField:
+							{
+								var fieldMeta = (PhoneField)entityField;
+								options.MaxLength = fieldMeta.MaxLength;
+							}
+							break;
+						case FieldType.TextField:
+							{
+								var fieldMeta = (TextField)entityField;
+								options.MaxLength = fieldMeta.MaxLength;
+							}
+							break;
+						default:
+							break;
+					}
+				}
 			}
 
 			return options;
 		}
 
-		public dynamic InitPcFieldBaseModel(PageComponentContext context, PcFieldBaseOptions options,out string label, string targetModel = "PcFieldBaseModel") {
+		public dynamic InitPcFieldBaseModel(PageComponentContext context, PcFieldBaseOptions options, out string label, string targetModel = "PcFieldBaseModel")
+		{
 			label = "";
 			var model = new PcFieldBaseModel();
 
@@ -337,11 +500,11 @@ namespace WebVella.Erp.Web.Components
 				model.ValidationErrors = ((ValidationException)context.Items[typeof(ValidationException)]).Errors;
 			}
 
-			model.LabelRenderModeOptions = ModelExtensions.GetEnumAsSelectOptions<LabelRenderMode>();
+			model.LabelRenderModeOptions = WebVella.TagHelpers.Utilities.ModelExtensions.GetEnumAsSelectOptions<WvLabelRenderMode>();
 
-			model.FieldRenderModeOptions = ModelExtensions.GetEnumAsSelectOptions<FieldRenderMode>();
+			model.FieldRenderModeOptions = WebVella.TagHelpers.Utilities.ModelExtensions.GetEnumAsSelectOptions<WvFieldRenderMode>();
 
-			if(context.Mode == ComponentMode.Options)
+			if (context.Mode == ComponentMode.Options)
 				model.EntitySelectOptions = new MetaService().GetEntitiesAsSelectOptions();
 
 			var recordId = context.DataModel.GetProperty("RecordId");
@@ -349,6 +512,17 @@ namespace WebVella.Erp.Web.Components
 			{
 				model.RecordId = (Guid)recordId;
 			}
+			//Check for RecordId override
+			if(!String.IsNullOrWhiteSpace(options.ConnectedRecordIdDs)){
+				var dsRecordId = context.DataModel.GetPropertyValueByDataSource(options.ConnectedRecordIdDs) as Guid?;
+				if(dsRecordId == null && Guid.TryParse(options.ConnectedRecordIdDs, out Guid outGuid)){
+					model.RecordId = outGuid;
+				}
+				else{
+					model.RecordId = dsRecordId.Value;
+				}
+			}
+
 
 			var entity = context.DataModel.GetProperty("Entity");
 			if (entity != null && entity is Entity)
@@ -370,17 +544,48 @@ namespace WebVella.Erp.Web.Components
 
 			if (mappedEntity != null)
 			{
+				//Override the entity settings
+				model.EntityName = mappedEntity.Name;	
 				var fieldName = options.Name;
+
+				if (fieldName.StartsWith("$"))
+				{
+					//Field with relation is set. Mapped entity should be changed
+					var fieldNameArray = fieldName.Replace("$", "").Split(".", StringSplitOptions.RemoveEmptyEntries);
+					if (fieldNameArray.Length == 2)
+					{
+						var relationName = fieldNameArray[0];
+						fieldName = fieldNameArray[1];
+						var relation = new EntityRelationManager().Read(relationName).Object;
+						if (relation != null)
+						{
+							if (relation.OriginEntityId == mappedEntity.Id)
+								mappedEntity = new EntityManager().ReadEntity(relation.TargetEntityId).Object;
+							else if (relation.TargetEntityId == mappedEntity.Id)
+								mappedEntity = new EntityManager().ReadEntity(relation.OriginEntityId).Object;
+						}
+
+					}
+
+				}
+
 				var entityField = mappedEntity.Fields.FirstOrDefault(x => x.Name == fieldName);
 				if (entityField != null)
 				{
-					//Connection success override the local options
-					//Init model
-					model.Placeholder = entityField.PlaceholderText;
-					model.Description = entityField.Description;
-					model.LabelHelpText = entityField.HelpText;
+					//Connection success set local options if needed
+					if (String.IsNullOrWhiteSpace(model.Placeholder))
+						model.Placeholder = entityField.PlaceholderText;
+
+					if (String.IsNullOrWhiteSpace(model.Description))
+						model.Description = entityField.Description;
+
+					if (String.IsNullOrWhiteSpace(model.LabelHelpText))
+						model.LabelHelpText = entityField.HelpText;
+
+					if (String.IsNullOrWhiteSpace(label))
+						label = entityField.Label;
+
 					model.Required = entityField.Required;
-					label = entityField.Label;
 
 					if (entityField.EnableSecurity)
 					{
@@ -399,11 +604,11 @@ namespace WebVella.Erp.Web.Components
 									canUpdate = true;
 							}
 							if (canUpdate)
-								model.Access = FieldAccess.Full;
+								model.Access = WvFieldAccess.Full;
 							else if (canRead)
-								model.Access = FieldAccess.ReadOnly;
+								model.Access = WvFieldAccess.ReadOnly;
 							else
-								model.Access = FieldAccess.Forbidden;
+								model.Access = WvFieldAccess.Forbidden;
 
 						}
 					}
@@ -425,6 +630,17 @@ namespace WebVella.Erp.Web.Components
 						default:
 							break;
 					}
+
+					if (!String.IsNullOrWhiteSpace(model.EntityName) && model.RecordId != null)
+						model.ApiUrl = $"/api/v3/en_US/record/{model.EntityName}/{model.RecordId}/";
+
+					if(!String.IsNullOrWhiteSpace(options.AjaxApiUrlDs)){
+						var urlString = context.DataModel.GetPropertyValueByDataSource(options.AjaxApiUrlDs) as string;
+						if(!String.IsNullOrWhiteSpace(urlString)){
+							model.ApiUrl = String.Format(urlString,model.EntityName,model.RecordId);
+						}
+					}					
+					
 					switch (targetModel)
 					{
 						case "PcFieldSelectModel":
@@ -440,6 +656,20 @@ namespace WebVella.Erp.Web.Components
 						default:
 							return model;
 					}
+				}
+
+
+				
+
+			}
+
+			if (!String.IsNullOrWhiteSpace(model.EntityName) && model.RecordId != null)
+				model.ApiUrl = $"/api/v3/en_US/record/{model.EntityName}/{model.RecordId}/";
+
+			if(!String.IsNullOrWhiteSpace(options.AjaxApiUrlDs)){
+				var urlString = context.DataModel.GetPropertyValueByDataSource(options.AjaxApiUrlDs) as string;
+				if(!String.IsNullOrWhiteSpace(urlString)){
+					model.ApiUrl = String.Format(urlString,model.EntityName,model.RecordId);
 				}
 			}
 

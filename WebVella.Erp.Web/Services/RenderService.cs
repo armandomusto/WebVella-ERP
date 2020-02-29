@@ -1,9 +1,10 @@
-﻿using HtmlAgilityPack;
-using Microsoft.AspNetCore.Http;
+﻿using CsvHelper;
+using HtmlAgilityPack;
 using Newtonsoft.Json;
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -17,12 +18,13 @@ namespace WebVella.Erp.Web.Services
 {
 	public class RenderService
 	{
+
 		public string GetPathTypeIcon(string filePath)
 		{
 			var fontAwesomeIconName = "fa-file";
 			if (filePath.EndsWith(".txt"))
 			{
-				fontAwesomeIconName = "fa-file-text";
+				fontAwesomeIconName = "fa-file-alt";
 			}
 			else if (filePath.EndsWith(".pdf"))
 			{
@@ -41,80 +43,80 @@ namespace WebVella.Erp.Web.Services
 				fontAwesomeIconName = "fa-file-powerpoint";
 			}
 			else if (filePath.EndsWith(".gif") || filePath.EndsWith(".jpg")
-				|| filePath.EndsWith(".jpeg") || filePath.EndsWith(".png")
-				|| filePath.EndsWith(".bmp") || filePath.EndsWith(".tif"))
+				 || filePath.EndsWith(".jpeg") || filePath.EndsWith(".png")
+				 || filePath.EndsWith(".bmp") || filePath.EndsWith(".tif"))
 			{
 				fontAwesomeIconName = "fa-file-image";
 			}
 			else if (filePath.EndsWith(".zip") || filePath.EndsWith(".zipx")
-				 || filePath.EndsWith(".rar") || filePath.EndsWith(".tar")
-				  || filePath.EndsWith(".gz") || filePath.EndsWith(".dmg")
-				   || filePath.EndsWith(".iso"))
+				  || filePath.EndsWith(".rar") || filePath.EndsWith(".tar")
+					|| filePath.EndsWith(".gz") || filePath.EndsWith(".dmg")
+					 || filePath.EndsWith(".iso"))
 			{
 				fontAwesomeIconName = "fa-file-archive";
 			}
 			else if (filePath.EndsWith(".wav") || filePath.EndsWith(".mp3")
-				 || filePath.EndsWith(".fla") || filePath.EndsWith(".flac")
-				  || filePath.EndsWith(".ra") || filePath.EndsWith(".rma")
-				   || filePath.EndsWith(".aif") || filePath.EndsWith(".aiff")
-					|| filePath.EndsWith(".aa") || filePath.EndsWith(".aac")
-					 || filePath.EndsWith(".aax") || filePath.EndsWith(".ac3")
-					  || filePath.EndsWith(".au") || filePath.EndsWith(".ogg")
-					   || filePath.EndsWith(".avr") || filePath.EndsWith(".3ga")
-						|| filePath.EndsWith(".mid") || filePath.EndsWith(".midi")
-						 || filePath.EndsWith(".m4a") || filePath.EndsWith(".mp4a")
-						  || filePath.EndsWith(".amz") || filePath.EndsWith(".mka")
-						   || filePath.EndsWith(".asx") || filePath.EndsWith(".pcm")
-							|| filePath.EndsWith(".m3u") || filePath.EndsWith(".wma")
-							 || filePath.EndsWith(".xwma"))
+				  || filePath.EndsWith(".fla") || filePath.EndsWith(".flac")
+					|| filePath.EndsWith(".ra") || filePath.EndsWith(".rma")
+					 || filePath.EndsWith(".aif") || filePath.EndsWith(".aiff")
+					  || filePath.EndsWith(".aa") || filePath.EndsWith(".aac")
+						|| filePath.EndsWith(".aax") || filePath.EndsWith(".ac3")
+						 || filePath.EndsWith(".au") || filePath.EndsWith(".ogg")
+						  || filePath.EndsWith(".avr") || filePath.EndsWith(".3ga")
+							|| filePath.EndsWith(".mid") || filePath.EndsWith(".midi")
+							 || filePath.EndsWith(".m4a") || filePath.EndsWith(".mp4a")
+							  || filePath.EndsWith(".amz") || filePath.EndsWith(".mka")
+								|| filePath.EndsWith(".asx") || filePath.EndsWith(".pcm")
+								 || filePath.EndsWith(".m3u") || filePath.EndsWith(".wma")
+								  || filePath.EndsWith(".xwma"))
 			{
 				fontAwesomeIconName = "fa-file-audio";
 			}
 			else if (filePath.EndsWith(".avi") || filePath.EndsWith(".mpg")
-				 || filePath.EndsWith(".mp4") || filePath.EndsWith(".mkv")
-				  || filePath.EndsWith(".mov") || filePath.EndsWith(".wmv")
-				   || filePath.EndsWith(".vp6") || filePath.EndsWith(".264")
-					|| filePath.EndsWith(".vid") || filePath.EndsWith(".rv")
-					 || filePath.EndsWith(".webm") || filePath.EndsWith(".swf")
-					  || filePath.EndsWith(".h264") || filePath.EndsWith(".flv")
-					   || filePath.EndsWith(".mk3d") || filePath.EndsWith(".gifv")
-						|| filePath.EndsWith(".oggv") || filePath.EndsWith(".3gp")
-						 || filePath.EndsWith(".m4v") || filePath.EndsWith(".movie")
-						  || filePath.EndsWith(".divx"))
+				  || filePath.EndsWith(".mp4") || filePath.EndsWith(".mkv")
+					|| filePath.EndsWith(".mov") || filePath.EndsWith(".wmv")
+					 || filePath.EndsWith(".vp6") || filePath.EndsWith(".264")
+					  || filePath.EndsWith(".vid") || filePath.EndsWith(".rv")
+						|| filePath.EndsWith(".webm") || filePath.EndsWith(".swf")
+						 || filePath.EndsWith(".h264") || filePath.EndsWith(".flv")
+						  || filePath.EndsWith(".mk3d") || filePath.EndsWith(".gifv")
+							|| filePath.EndsWith(".oggv") || filePath.EndsWith(".3gp")
+							 || filePath.EndsWith(".m4v") || filePath.EndsWith(".movie")
+							  || filePath.EndsWith(".divx"))
 			{
 				fontAwesomeIconName = "fa-file-video";
 			}
 			else if (filePath.EndsWith(".c") || filePath.EndsWith(".cpp")
-				 || filePath.EndsWith(".css") || filePath.EndsWith(".js")
-				 || filePath.EndsWith(".py") || filePath.EndsWith(".git")
-				  || filePath.EndsWith(".cs") || filePath.EndsWith(".cshtml")
-				  || filePath.EndsWith(".xml") || filePath.EndsWith(".html")
-				   || filePath.EndsWith(".ini") || filePath.EndsWith(".config")
-					|| filePath.EndsWith(".json") || filePath.EndsWith(".h"))
+				  || filePath.EndsWith(".css") || filePath.EndsWith(".js")
+				  || filePath.EndsWith(".py") || filePath.EndsWith(".git")
+					|| filePath.EndsWith(".cs") || filePath.EndsWith(".cshtml")
+					|| filePath.EndsWith(".xml") || filePath.EndsWith(".html")
+					 || filePath.EndsWith(".ini") || filePath.EndsWith(".config")
+					  || filePath.EndsWith(".json") || filePath.EndsWith(".h"))
 			{
 				fontAwesomeIconName = "fa-file-code";
 			}
 			else if (filePath.EndsWith(".exe") || filePath.EndsWith(".jar")
-				 || filePath.EndsWith(".dll") || filePath.EndsWith(".bat")
-				 || filePath.EndsWith(".pl") || filePath.EndsWith(".scr")
-				  || filePath.EndsWith(".msi") || filePath.EndsWith(".app")
-				  || filePath.EndsWith(".deb") || filePath.EndsWith(".apk")
-				   || filePath.EndsWith(".jar") || filePath.EndsWith(".vb")
-					|| filePath.EndsWith(".prg") || filePath.EndsWith(".sh"))
+				  || filePath.EndsWith(".dll") || filePath.EndsWith(".bat")
+				  || filePath.EndsWith(".pl") || filePath.EndsWith(".scr")
+					|| filePath.EndsWith(".msi") || filePath.EndsWith(".app")
+					|| filePath.EndsWith(".deb") || filePath.EndsWith(".apk")
+					 || filePath.EndsWith(".jar") || filePath.EndsWith(".vb")
+					  || filePath.EndsWith(".prg") || filePath.EndsWith(".sh"))
 			{
 				fontAwesomeIconName = "fa-cogs";
 			}
 			else if (filePath.EndsWith(".com") || filePath.EndsWith(".net")
-				 || filePath.EndsWith(".org") || filePath.EndsWith(".edu")
-				 || filePath.EndsWith(".gov") || filePath.EndsWith(".mil")
-				  || filePath.EndsWith("/") || filePath.EndsWith(".html")
-				  || filePath.EndsWith(".htm") || filePath.EndsWith(".xhtml")
-				   || filePath.EndsWith(".jhtml") || filePath.EndsWith(".php")
-					|| filePath.EndsWith(".php3") || filePath.EndsWith(".php4")
-				   || filePath.EndsWith(".php5") || filePath.EndsWith(".phtml")
-				   || filePath.EndsWith(".asp") || filePath.EndsWith(".aspx")
-				   || filePath.EndsWith(".aspx") || filePath.EndsWith("?")
-				   || filePath.EndsWith("#"))
+				  || filePath.EndsWith(".org") || filePath.EndsWith(".edu")
+				  || filePath.EndsWith(".gov") || filePath.EndsWith(".mil")
+					|| filePath.EndsWith("/") || filePath.EndsWith(".html")
+					|| filePath.EndsWith(".htm") || filePath.EndsWith(".xhtml")
+					 || filePath.EndsWith(".jhtml") || filePath.EndsWith(".php")
+					  || filePath.EndsWith(".php3") || filePath.EndsWith(".php4")
+					 || filePath.EndsWith(".php5") || filePath.EndsWith(".phtml")
+					 || filePath.EndsWith(".asp") || filePath.EndsWith(".aspx")
+					 || filePath.EndsWith(".aspx") || filePath.EndsWith("?")
+					 || filePath.EndsWith("#"))
 			{
 				fontAwesomeIconName = "fa-globe";
 			}
@@ -266,7 +268,7 @@ namespace WebVella.Erp.Web.Services
 				}
 
 				else if (processedTag == "CurrentUrlEncoded" && requestContext != null && requestContext.PageContext != null
-					&& requestContext.PageContext.HttpContext != null && requestContext.PageContext.HttpContext.Request != null)
+					 && requestContext.PageContext.HttpContext != null && requestContext.PageContext.HttpContext.Request != null)
 				{
 
 					var currentUrl = requestContext.PageContext.HttpContext.Request.Path + requestContext.PageContext.HttpContext.Request.QueryString;
@@ -354,7 +356,8 @@ namespace WebVella.Erp.Web.Services
 			return template;
 		}
 
-		public string GetSnippetFromHtml(string html, int snippetLength = 150) {
+		public string GetSnippetFromHtml(string html, int snippetLength = 150)
+		{
 			var result = "";
 			if (!String.IsNullOrWhiteSpace(html))
 			{
@@ -435,6 +438,48 @@ namespace WebVella.Erp.Web.Services
 					PropertyPath = PropertyPath.Skip(1).ToArray();//Remove the processed property from the array path
 					result = GetValueFromPropertyPath(pathPropertyValue, PropertyPath);
 				}
+			}
+			return result;
+		}
+
+		public string GetCacheKey()
+		{
+			var key = ErpSettings.CacheKey;
+			if (String.IsNullOrWhiteSpace(key))
+				key = DateTime.Now.ToString("yyyyMMdd");
+
+			return key;
+		}
+
+		public List<MenuItem> ConvertListToTree(List<MenuItem> list, List<MenuItem> result, Guid? parentId = null){
+			if(result == null)
+				result = new List<MenuItem>();
+
+			var childItems = list.FindAll(x=> x.ParentId == parentId).OrderBy(x=> x.SortOrder).ToList();
+			
+			foreach (var childNode in childItems)
+			{
+				//create new node (do not include the Nodes)
+				var newItem = new MenuItem{
+					Class = childNode.Class,
+					Content = childNode.Content,
+					Id = childNode.Id,
+					isDropdownRight = childNode.isDropdownRight,
+					IsHtml = childNode.IsHtml,
+					ParentId = childNode.ParentId,
+					RenderWrapper = childNode.RenderWrapper,
+					SortOrder = childNode.SortOrder,
+					Nodes = new List<MenuItem>()
+				};
+				if (parentId == null)
+				{
+					result.Add(newItem);
+				}
+				else {
+					var parentNode = result.First(x => x.Id == parentId);
+					parentNode.Nodes.Add(newItem);
+				}
+				ConvertListToTree(list, result, childNode.Id);
 			}
 			return result;
 		}

@@ -146,14 +146,17 @@ namespace WebVella.Erp.Web.Utils
 		{
 			var returnHtml = "";
 
+			if(httpContext == null)
+				return "";
+
 			var descriptionList = new List<string>();
 			#region << Total Count >>
-			//var totalCountHtml = totalCount + " records";
-			//if (totalCount == 1)
-			//{
-			//	totalCountHtml = totalCount + " record";
-			//}
-			//descriptionList.Add(totalCountHtml);
+			var totalCountHtml = totalCount + " records";
+			if (totalCount == 1)
+			{
+				totalCountHtml = totalCount + " record";
+			}
+			descriptionList.Add(totalCountHtml);
 			#endregion
 
 			#region << Sorted by >>
@@ -223,7 +226,7 @@ namespace WebVella.Erp.Web.Utils
 			}
 			else
 			{
-				appPages = pageSrv.GetAppPages(appId ?? Guid.Empty);
+				appPages = pageSrv.GetAppControlledPages(appId ?? Guid.Empty);
 			}
 			var nodePagesDict = new Dictionary<Guid, List<SelectOption>>();
 			foreach (var page in appPages)
@@ -283,16 +286,16 @@ namespace WebVella.Erp.Web.Utils
 				case PageUtilsActionType.SubmitForm:
 					{
 						var btnClassRender = !String.IsNullOrWhiteSpace(btnClass) ? btnClass : "btn btn-blue btn-sm";
-						var iconClassRender = !String.IsNullOrWhiteSpace(iconClass) ? iconClass : "ti-save go-white";
+						var iconClassRender = !String.IsNullOrWhiteSpace(iconClass) ? iconClass : "fa fa-save go-white";
 						var labelRender = !String.IsNullOrWhiteSpace(label) ? label : "Save";
-						return $"<button type='button' onclick='ErpEvent.DISPATCH(\"WebVella.Erp.Web.Components.PcForm\",{{htmlId:\"{formId}\",action:\"submit\",payload:null}})' class='{btnClassRender}' title='{titleText}'><span class='{iconClassRender}'></span> {labelRender}</button>";
+						return $"<button type='submit' form='{formId}' class='{btnClassRender}' title='{titleText}'><span class='{iconClassRender}'></span> {labelRender}</button>";
 					}
 				case PageUtilsActionType.ConfirmAndSubmitForm:
 					{
 						var btnClassRender = !String.IsNullOrWhiteSpace(btnClass) ? btnClass : "btn btn-blue btn-sm";
-						var iconClassRender = !String.IsNullOrWhiteSpace(iconClass) ? iconClass : "ti-save go-white";
+						var iconClassRender = !String.IsNullOrWhiteSpace(iconClass) ? iconClass : "fa fa-save go-white";
 						var labelRender = !String.IsNullOrWhiteSpace(label) ? label : "Save";
-						return $"<button type='button' onclick='if(confirm(\"Are you sure?\")) {{ ErpEvent.DISPATCH(\"WebVella.Erp.Web.Components.PcForm\",{{htmlId:\"{formId}\",action:\"submit\",payload:null}})}}' class='{btnClassRender}' title='{titleText}'><span class='{iconClassRender}'></span> {labelRender}</button>";
+						return $"<button type='submit' form='{formId}' onclick='if(confirm(\"Are you sure?\")) {{ }}' class='{btnClassRender}' title='{titleText}'><span class='{iconClassRender}'></span> {labelRender}</button>";
 					}
 				case PageUtilsActionType.Disabled:
 					{
@@ -2116,8 +2119,17 @@ namespace WebVella.Erp.Web.Utils
 			if (!string.IsNullOrWhiteSpace(scriptTag.InlineContent))
 			{
 				#region << type >>
+				if(!scriptTag.IsNomodule)
 				{
 					var attribute = $"type=\"{scriptTag.Type}\"";
+					resultStringList.Add(attribute);
+				}
+				#endregion
+
+				#region << nomodule >>
+				if(scriptTag.IsNomodule)
+				{
+					var attribute = $"nomodule";
 					resultStringList.Add(attribute);
 				}
 				#endregion
@@ -2140,11 +2152,21 @@ namespace WebVella.Erp.Web.Utils
 				#endregion
 
 				#region << type >>
+				if(!scriptTag.IsNomodule)
 				{
 					var attribute = $"type=\"{scriptTag.Type}\"";
 					resultStringList.Add(attribute);
 				}
 				#endregion
+
+				#region << nomodule >>
+				if(scriptTag.IsNomodule)
+				{
+					var attribute = $"nomodule";
+					resultStringList.Add(attribute);
+				}
+				#endregion
+
 				return "<script " + String.Join(" ", resultStringList).Trim() + " ></script>";
 			}
 		}

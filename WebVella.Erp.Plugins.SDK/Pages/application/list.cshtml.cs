@@ -9,6 +9,7 @@ using WebVella.Erp.Web;
 using WebVella.Erp.Web.Models;
 using WebVella.Erp.Web.Services;
 using WebVella.Erp.Web.Utils;
+using WebVella.TagHelpers.Models;
 
 namespace WebVella.Erp.Plugins.SDK.Pages.Application
 {
@@ -16,7 +17,7 @@ namespace WebVella.Erp.Plugins.SDK.Pages.Application
 	{
 		public ListModel([FromServices]ErpRequestContext reqCtx) { ErpRequestContext = reqCtx; }
 
-		public List<GridColumn> Columns { get; set; } = new List<GridColumn>();
+		public List<WvGridColumnMeta> Columns { get; set; } = new List<WvGridColumnMeta>();
 
 		public List<EntityRecord> Records { get; set; } = new List<EntityRecord>();
 
@@ -34,9 +35,11 @@ namespace WebVella.Erp.Plugins.SDK.Pages.Application
 
 		public string PageDescription { get; set; } = "";
 
-		public void OnGet()
+		public IActionResult OnGet()
 		{
-			Init();
+			var initResult = Init();
+			if (initResult != null)
+				return initResult;
 
 			#region << InitPage >>
 			int pager = 0;
@@ -79,29 +82,29 @@ namespace WebVella.Erp.Plugins.SDK.Pages.Application
 
 			#region << Create Columns >>
 
-			Columns = new List<GridColumn>() {
-				new GridColumn(){
+			Columns = new List<WvGridColumnMeta>() {
+				new WvGridColumnMeta(){
 					Name = "action",
 					Width="1%"
 				},
-				new GridColumn(){
+				new WvGridColumnMeta(){
 					Label = "Icon",
 					Name = "icon",
 					Width="1%"
 				},
-				new GridColumn(){
+				new WvGridColumnMeta(){
 					Label = "Name",
 					Name = "name",
 					Sortable = true,
 					Searchable = true
 				},
-				new GridColumn(){
+				new WvGridColumnMeta(){
 					Label = "Label",
 					Name = "label",
 					Sortable = true,
 					Searchable = true
 				},
-				new GridColumn(){
+				new WvGridColumnMeta(){
 					Label = "Description",
 					Name = "description"
 				}
@@ -147,7 +150,7 @@ namespace WebVella.Erp.Plugins.SDK.Pages.Application
 			foreach (var app in apps)
 			{
 				var record = new EntityRecord();
-				record["action"] = $"<a class='btn btn-sm btn-white' title='App details' href='/sdk/objects/application/r/{app.Id}?returnUrl={ReturnUrlEncoded}'><span class='ti-eye'></span></a>";
+				record["action"] = $"<a class='btn btn-sm btn-outline-secondary' title='App details' href='/sdk/objects/application/r/{app.Id}?returnUrl={ReturnUrlEncoded}'><span class='fa fa-eye'></span></a>";
 				record["name"] = app.Name;
 				record["label"] = app.Label;
 				record["icon"] = $"<div class='badge badge-pill' style='font-size:18px;color:{app.Color};'><span class='{app.IconClass}'></span></div>";
@@ -157,6 +160,9 @@ namespace WebVella.Erp.Plugins.SDK.Pages.Application
 			#endregion
 
 			ErpRequestContext.PageContext = PageContext;
+
+			BeforeRender();
+			return Page();
 		}
 	}
 }

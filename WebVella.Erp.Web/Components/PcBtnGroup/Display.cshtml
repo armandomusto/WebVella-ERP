@@ -1,5 +1,7 @@
 ﻿@addTagHelper *, WebVella.Erp.Plugins.Core
 @addTagHelper *, WebVella.Erp.Web
+@addTagHelper *, WebVella.TagHelpers
+
 @using WebVella.Erp.Web.Components;
 @using WebVella.Erp.Web.Models;
 @using WebVella.Erp.Web.Utils;
@@ -8,7 +10,7 @@
 	var node = (PageBodyNode)ViewBag.Node;
 	var componentContext = (PageComponentContext)ViewBag.ComponentContext;
 }
-<wv-button-group size="@options.Size" is-vertical="@options.IsVertical" class="@options.Class" id="@options.Id">
+<wv-button-group size="@options.Size" is-vertical="@options.IsVertical" class="@options.Class" id="@options.Id" is-visible="(bool)ViewBag.IsVisible">
 @foreach (var childNode in node.Nodes)
 {
 	var nodeComponentName = "";

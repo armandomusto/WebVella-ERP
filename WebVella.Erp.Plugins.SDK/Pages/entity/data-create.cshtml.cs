@@ -11,6 +11,7 @@ using WebVella.Erp.Web;
 using WebVella.Erp.Web.Models;
 using WebVella.Erp.Web.Services;
 using WebVella.Erp.Web.Utils;
+using WebVella.TagHelpers.Models;
 
 namespace WebVella.Erp.Plugins.SDK.Pages.ErpEntity
 {
@@ -30,8 +31,6 @@ namespace WebVella.Erp.Plugins.SDK.Pages.ErpEntity
 
 		public void PageInit()
 		{
-			Init();
-
 			var entMan = new EntityManager();
 			var recMan = new RecordManager();
 
@@ -64,16 +63,25 @@ namespace WebVella.Erp.Plugins.SDK.Pages.ErpEntity
 
 		public IActionResult OnGet()
 		{
+			var initResult = Init();
+			if (initResult != null)
+				return initResult;
+
 			PageInit();
 
 			if (ErpEntity == null)
 				return NotFound();
 
+			BeforeRender();
 			return Page();
 		}
 
 		public IActionResult OnPost()
 		{
+			var initResult = Init();
+			if (initResult != null)
+				return initResult;
+
 			PageInit();
 
 			if (ErpEntity == null)
@@ -81,7 +89,7 @@ namespace WebVella.Erp.Plugins.SDK.Pages.ErpEntity
 
 			try
 			{
-				Record = (EntityRecord)new PageService().ConvertFormPostToEntityRecord(PageContext.HttpContext, ErpEntity);
+				Record = (EntityRecord)new PageService().ConvertFormPostToEntityRecord(PageContext.HttpContext, RecordId, ErpEntity);
 
 				//clear empty password properties from record, only update if new password is set
 				//this is because browsers don't render password inputs and don't submit any value, if no user input
@@ -112,10 +120,11 @@ namespace WebVella.Erp.Plugins.SDK.Pages.ErpEntity
 				Validation.Errors.Add(new ValidationError("", ex.Message, true));
 			}
 
+			BeforeRender();
 			return Page();
 		}
 
-		public FieldAccess GetFieldAccess(Field entityField)
+		public WvFieldAccess GetFieldAccess(Field entityField)
 		{
 			var canRead = false;
 			var canUpdate = false;
@@ -139,15 +148,15 @@ namespace WebVella.Erp.Plugins.SDK.Pages.ErpEntity
 				}
 			}
 			else
-				return FieldAccess.Full;
+				return WvFieldAccess.Full;
 
 
 			if (canUpdate)
-				return FieldAccess.Full;
+				return WvFieldAccess.Full;
 			else if (canRead)
-				return FieldAccess.ReadOnly;
+				return WvFieldAccess.ReadOnly;
 			else
-				return FieldAccess.Forbidden;
+				return WvFieldAccess.Forbidden;
 		}
 
 	}

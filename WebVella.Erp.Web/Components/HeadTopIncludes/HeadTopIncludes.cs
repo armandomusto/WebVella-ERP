@@ -5,18 +5,21 @@ using System.Linq;
 using System.Threading.Tasks;
 using WebVella.Erp.Web.Hooks;
 using WebVella.Erp.Web.Models;
+using WebVella.Erp.Web.Services;
 
 namespace WebVella.Erp.Web.Components
 {
 
 	[RenderHookAttachment("head-top", 10)]
 	public class HeadTopIncludes : ViewComponent
-    {
-        public async Task<IViewComponentResult> InvokeAsync(BaseErpPageModel pageModel)
-        {
+	{
+		public async Task<IViewComponentResult> InvokeAsync(BaseErpPageModel pageModel)
+		{
 			ViewBag.MetaTags = new List<MetaTagInclude>();
 			ViewBag.LinkTags = new List<LinkTagInclude>();
 			ViewBag.ScriptTags = new List<ScriptTagInclude>();
+
+			var cacheKey = new RenderService().GetCacheKey();
 
 			#region == <title> ==
 			var includedTitle = pageModel.HttpContext.Items.ContainsKey("<title>") ? (string)pageModel.HttpContext.Items["<title>"] : "";
@@ -83,7 +86,7 @@ namespace WebVella.Erp.Web.Components
 					{
 						linkTagsToInclude.Add(new LinkTagInclude()
 						{
-							Href = $"/assets/favicon.png",
+							Href = $"/_content/WebVella.Erp.Web/assets/favicon.png",
 							Rel = RelType.Icon,
 							Type = "image/png"
 						});
@@ -104,89 +107,77 @@ namespace WebVella.Erp.Web.Components
 				//}
 				//#endregion
 
-				#region << bootstrap.css >>
-				{
-					if (!includedLinkTags.Any(x => x.Href.Contains("/bootstrap.css")))
-					{
-						linkTagsToInclude.Add(new LinkTagInclude()
-						{
-							Href = "/lib/twitter-bootstrap/css/bootstrap.css"
-						});
-					}
-				}
-				#endregion
+				//#region << bootstrap.css >>
+				//{
+				//	if (!includedLinkTags.Any(x => x.Href.Contains("/bootstrap.css")))
+				//	{
+				//		linkTagsToInclude.Add(new LinkTagInclude()
+				//		{
+				//			Href = "/_content/WebVella.Erp.Web/lib/twitter-bootstrap/css/bootstrap.css?cb=" + cacheKey
+				//		});
+				//	}
+				//}
+				//#endregion
 
-				#region << themify >>
-				{
-					if (!includedLinkTags.Any(x => x.Href.Contains("/themify")))
-					{
-						linkTagsToInclude.Add(new LinkTagInclude()
-						{
-							Href = "/js/themify-icons-0.1.2/css/themify-icons.css"
-						});
-					}
-				}
-				#endregion
+				//#region << flatpickr >>
+				//{
+				//	if (!includedLinkTags.Any(x => x.Href.Contains("/flatpickr")))
+				//	{
+				//		linkTagsToInclude.Add(new LinkTagInclude()
+				//		{
+				//			Href = "/_content/WebVella.Erp.Web/lib/flatpickr/flatpickr.min.css?cb=" + cacheKey
+				//		});
+				//	}
+				//}
+				//#endregion
 
-				#region << flatpickr >>
-				{
-					if (!includedLinkTags.Any(x => x.Href.Contains("/flatpickr")))
-					{
-						linkTagsToInclude.Add(new LinkTagInclude()
-						{
-							Href = "/lib/flatpickr/flatpickr.min.css"
-						});
-					}
-				}
-				#endregion
+				//#region << select2 >>
+				//{
+				//	if (!includedLinkTags.Any(x => x.Href.Contains("/select2")))
+				//	{
+				//		linkTagsToInclude.Add(new LinkTagInclude()
+				//		{
+				//			Href = "/_content/WebVella.Erp.Web/lib/select2/css/select2.min.css?cb=" + cacheKey
+				//		});
+				//	}
+				//}
+				//#endregion
 
-				#region << select2 >>
-				{
-					if (!includedLinkTags.Any(x => x.Href.Contains("/select2")))
-					{
-						linkTagsToInclude.Add(new LinkTagInclude()
-						{
-							Href = "/lib/select2/css/select2.min.css"
-						});
-					}
-				}
-				#endregion
+				//#region << font-awesome >>
+				//{
+				//	if (!includedLinkTags.Any(x => x.Href.Contains("/font-awesome")))
+				//	{
+				//		linkTagsToInclude.Add(new LinkTagInclude()
+				//		{
+				//			Href = "/_content/WebVella.Erp.Web/css/font-awesome-5.10.2/css/all.min.css?cb=" + cacheKey
+				//		});
+				//	}
+				//}
+				//#endregion
 
-				#region << font-awesome >>
-				{
-					if (!includedLinkTags.Any(x => x.Href.Contains("/font-awesome")))
-					{
-						linkTagsToInclude.Add(new LinkTagInclude()
-						{
-							Href = "/js/font-awesome-5.4.1/css/all.min.css"
-						});
-					}
-				}
-				#endregion
+				//#region << toastr >>
+				//{
+				//	if (!includedLinkTags.Any(x => x.Href.Contains("/toastr")))
+				//	{
+				//		linkTagsToInclude.Add(new LinkTagInclude()
+				//		{
+				//			Href = "/_content/WebVella.Erp.Web/lib/toastr.js/toastr.min.css?cb=" + cacheKey
+				//		});
+				//	}
+				//}
+				//#endregion
 
-				#region << toastr >>
-				{
-					if (!includedLinkTags.Any(x => x.Href.Contains("/toastr")))
-					{
-						linkTagsToInclude.Add(new LinkTagInclude()
-						{
-							Href = "/lib/toastr.js/toastr.min.css"
-						});
-					}
-				}
-				#endregion
-
-				#region << colorpicker >>
-				{
-					if (!includedLinkTags.Any(x => x.Href.Contains("/colorpicker")))
-					{
-						linkTagsToInclude.Add(new LinkTagInclude()
-						{
-							Href = "/lib/spectrum/spectrum.min.css"
-						});
-					}
-				}
-				#endregion
+				//#region << colorpicker >>
+				//{
+				//	if (!includedLinkTags.Any(x => x.Href.Contains("/colorpicker")))
+				//	{
+				//		linkTagsToInclude.Add(new LinkTagInclude()
+				//		{
+				//			Href = "/_content/WebVella.Erp.Web/lib/spectrum/spectrum.min.css?cb=" + cacheKey
+				//		});
+				//	}
+				//}
+				//#endregion
 
 				//<<<< Your includes up
 
@@ -212,6 +203,6 @@ namespace WebVella.Erp.Web.Components
 			#endregion
 
 			return await Task.FromResult<IViewComponentResult>(View("Default"));
-        }
-    }
+		}
+	}
 }

@@ -12,6 +12,7 @@ using WebVella.Erp.Plugins.SDK.Utils;
 using WebVella.Erp.Web;
 using WebVella.Erp.Web.Models;
 using WebVella.Erp.Web.Utils;
+using WebVella.TagHelpers.Models;
 
 namespace WebVella.Erp.Plugins.SDK.Pages.ErpEntity
 {
@@ -21,7 +22,7 @@ namespace WebVella.Erp.Plugins.SDK.Pages.ErpEntity
 
 		public Entity ErpEntity { get; set; }
 
-		public List<GridColumn> Columns { get; set; } = new List<GridColumn>();
+		public List<WvGridColumnMeta> Columns { get; set; } = new List<WvGridColumnMeta>();
 
 		public List<EntityRecord> Records { get; set; } = new List<EntityRecord>();
 
@@ -55,7 +56,9 @@ namespace WebVella.Erp.Plugins.SDK.Pages.ErpEntity
 
 		public IActionResult OnGet()
 		{
-			Init();
+			var initResult = Init();
+			if (initResult != null)
+				return initResult;
 
 			var entMan = new EntityManager();
 			var recMan = new RecordManager();
@@ -164,7 +167,7 @@ namespace WebVella.Erp.Plugins.SDK.Pages.ErpEntity
 
 			#region << Create Columns >>
 
-			Columns.Add(new GridColumn()
+			Columns.Add(new WvGridColumnMeta()
 			{
 				Name = "",
 				Label = "",
@@ -176,11 +179,11 @@ namespace WebVella.Erp.Plugins.SDK.Pages.ErpEntity
 			foreach (var field in Fields)
 			{
 				var fieldAccess = GetFieldAccess(field);
-				var searchAndSortAvailable = field.Searchable && (fieldAccess == FieldAccess.Full || fieldAccess == FieldAccess.ReadOnly);
-				var column = new GridColumn()
+				var searchAndSortAvailable = field.Searchable && (fieldAccess == WvFieldAccess.Full || fieldAccess == WvFieldAccess.ReadOnly);
+				var column = new WvGridColumnMeta()
 				{
 					Name = field.Name,
-					Label = field.Label,
+					Label = field.Name, //should present just the name not to confuse
 					Sortable = searchAndSortAvailable,
 					Searchable = searchAndSortAvailable
 				};
@@ -199,7 +202,7 @@ namespace WebVella.Erp.Plugins.SDK.Pages.ErpEntity
 			{
 				//remove fields with no access from search
 				var fieldAccess = GetFieldAccess(field);
-				var searchable = field.Searchable && (fieldAccess == FieldAccess.Full || fieldAccess == FieldAccess.ReadOnly);
+				var searchable = field.Searchable && (fieldAccess == WvFieldAccess.Full || fieldAccess == WvFieldAccess.ReadOnly);
 				if (!searchable)
 					continue;
 
@@ -239,6 +242,7 @@ namespace WebVella.Erp.Plugins.SDK.Pages.ErpEntity
 
 			#endregion
 
+			BeforeRender();
 			return Page();
 		}
 
@@ -254,7 +258,7 @@ namespace WebVella.Erp.Plugins.SDK.Pages.ErpEntity
 			if (!Guid.TryParse(PageContext.HttpContext.Request.Query["recordId"], out Guid recordId))
 				return NotFound();
 
-			ErpEntity = new EntityManager().ReadEntity(RecordId ?? Guid.Empty).Object;
+			ErpEntity = new EntityManager().ReadEntity(ParentRecordId ?? Guid.Empty).Object;
 
 			if (ErpEntity == null)
 				return NotFound();
@@ -269,17 +273,19 @@ namespace WebVella.Erp.Plugins.SDK.Pages.ErpEntity
 					exception.Errors = response.Errors.MapTo<ValidationError>();
 					throw exception;
 				}
-				return Redirect(ReturnUrl);
+				return Redirect($"/sdk/objects/entity/r/{ParentRecordId}/rl/data/l");
 			}
 			catch (ValidationException ex)
 			{
 				Validation.Message = ex.Message;
 				Validation.Errors = ex.Errors;
 			}
+
+			BeforeRender();
 			return Page();
 		}
 
-		public FieldAccess GetFieldAccess(Field entityField)
+		public WvFieldAccess GetFieldAccess(Field entityField)
 		{
 			var canRead = false;
 			var canUpdate = false;
@@ -303,15 +309,15 @@ namespace WebVella.Erp.Plugins.SDK.Pages.ErpEntity
 				}
 			}
 			else
-				return FieldAccess.Full;
+				return WvFieldAccess.Full;
 
 
 			if (canUpdate)
-				return FieldAccess.Full;
+				return WvFieldAccess.Full;
 			else if (canRead)
-				return FieldAccess.ReadOnly;
+				return WvFieldAccess.ReadOnly;
 			else
-				return FieldAccess.Forbidden;
+				return WvFieldAccess.Forbidden;
 		}
 
 	}

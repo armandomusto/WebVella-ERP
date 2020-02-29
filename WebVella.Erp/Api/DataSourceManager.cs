@@ -301,7 +301,7 @@ namespace WebVella.Erp.Api
 			foreach (var line in parameters.Split("\n", StringSplitOptions.RemoveEmptyEntries))
 			{
 				var parts = line.Replace("\r", "").Split(",", StringSplitOptions.RemoveEmptyEntries);
-				if (parts.Count() != 3)
+				if (parts.Count() < 3 || parts.Count() > 4)
 					throw new Exception("Invalid parameter description: " + line);
 
 				DataSourceParameter dsPar = new DataSourceParameter();
@@ -311,6 +311,17 @@ namespace WebVella.Erp.Api
 					throw new Exception("Invalid parameter type in: " + line);
 
 				dsPar.Value = parts[2].Trim();
+				if(parts.Count() == 4)
+				{
+					try
+					{
+						dsPar.IgnoreParseErrors = bool.Parse(parts[3]);
+					}
+					catch
+					{
+						dsPar.IgnoreParseErrors = false;
+					}
+				}
 				dsParams.Add(dsPar);
 			}
 			return dsParams;
@@ -321,7 +332,10 @@ namespace WebVella.Erp.Api
 			var result = "";
 			foreach (var param in parameters)
 			{
-				result += $"{param.Name},{param.Type},{param.Value}" + Environment.NewLine;
+				if( param.IgnoreParseErrors )
+					result += $"{param.Name},{param.Type},{param.Value},true" + Environment.NewLine;
+				else
+					result += $"{param.Name},{param.Type},{param.Value}" + Environment.NewLine;
 			}
 
 			return result;
@@ -333,7 +347,7 @@ namespace WebVella.Erp.Api
 			if (!parName.StartsWith("@"))
 				parName = "@" + parName;
 
-			return new EqlParameter(parName, GetDataSourceParameterValue(dsParameter));
+			return new EqlParameter(parName, GetDataSourceParameterValue(dsParameter), dsParameter.Type );
 		}
 
 
@@ -346,11 +360,17 @@ namespace WebVella.Erp.Api
 						if (string.IsNullOrWhiteSpace(dsParameter.Value))
 							return null;
 
+						if (dsParameter.Value.ToLowerInvariant() == "null")
+							return null;
+
 						if (dsParameter.Value.ToLowerInvariant() == "guid.empty")
 							return Guid.Empty;
-
+						
 						if (Guid.TryParse(dsParameter.Value, out Guid value))
 							return value;
+
+						if (dsParameter.IgnoreParseErrors)
+							return null;
 
 						throw new Exception($"Invalid Guid value for parameter: " + dsParameter.Name);
 					}
@@ -362,6 +382,12 @@ namespace WebVella.Erp.Api
 						if (Int32.TryParse(dsParameter.Value, out int value))
 							return value;
 
+						if (dsParameter.Value.ToLowerInvariant() == "null")
+							return null;
+
+						if (dsParameter.IgnoreParseErrors)
+							return null;
+
 						throw new Exception($"Invalid int value for parameter: " + dsParameter.Name);
 					}
 				case "decimal":
@@ -372,11 +398,17 @@ namespace WebVella.Erp.Api
 						if (Decimal.TryParse(dsParameter.Value, out decimal value))
 							return value;
 
+						if (dsParameter.IgnoreParseErrors)
+							return null;
+
 						throw new Exception($"Invalid decimal value for parameter: " + dsParameter.Name);
 					}
 				case "date":
 					{
 						if (string.IsNullOrWhiteSpace(dsParameter.Value))
+							return null;
+
+						if (dsParameter.Value.ToLowerInvariant() == "null")
 							return null;
 
 						if (dsParameter.Value.ToLowerInvariant() == "now")
@@ -388,6 +420,9 @@ namespace WebVella.Erp.Api
 						if (DateTime.TryParse(dsParameter.Value, out DateTime value))
 							return value;
 
+						if (dsParameter.IgnoreParseErrors)
+							return null;
+
 						throw new Exception($"Invalid datetime value for parameter: " + dsParameter.Name);
 					}
 				case "text":
@@ -398,7 +433,26 @@ namespace WebVella.Erp.Api
 						if (dsParameter.Value.ToLowerInvariant() == "string.empty")
 							return String.Empty;
 
+						if (dsParameter.IgnoreParseErrors)
+							return null;
+
 						return dsParameter.Value;
+					}
+				case "bool":
+					{
+						if (dsParameter.Value.ToLowerInvariant() == "null")
+							return null;
+
+						if (dsParameter.Value.ToLowerInvariant() == "true")
+							return true;
+
+						if (dsParameter.Value.ToLowerInvariant() == "false")
+							return false;
+
+						if (dsParameter.IgnoreParseErrors)
+							return null;
+
+						throw new Exception($"Invalid boolean value for parameter: " + dsParameter.Name);
 					}
 				default:
 					throw new Exception($"Invalid parameter type '{dsParameter.Type}' for '{dsParameter.Name}'");
@@ -411,7 +465,7 @@ namespace WebVella.Erp.Api
 			RemoveFromCache();
 		}
 
-		public List<EntityRecord> Execute(Guid id, List<EqlParameter> parameters = null)
+		public EntityRecordList Execute(Guid id, List<EqlParameter> parameters = null)
 		{
 			var ds = Get(id);
 			if (ds == null)
@@ -430,7 +484,7 @@ namespace WebVella.Erp.Api
 				throw new NotImplementedException();
 		}
 
-		public List<EntityRecord> Execute(string eql, string parameters = null)
+		public EntityRecordList Execute(string eql, string parameters = null)
 		{
 			if (string.IsNullOrWhiteSpace(eql))
 				throw new ArgumentException(nameof(eql));

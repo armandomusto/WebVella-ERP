@@ -157,7 +157,6 @@ namespace WebVella.Erp.Plugins.Project.Controllers
 			return Json(response);
 		}
 
-
 		[Route("api/v3.0/p/project/pc-timelog-list/create")]
 		[HttpPost]
 		public ActionResult CreateTimelog([FromBody]EntityRecord record)
@@ -207,10 +206,7 @@ namespace WebVella.Erp.Plugins.Project.Controllers
 			var loggedOn = new DateTime();
 			if (record.Properties.ContainsKey("loggedOn") && record["loggedOn"] != null)
 			{
-				if (DateTime.TryParse(record["loggedOn"].ToString(), out DateTime outDateTime))
-				{
-					loggedOn = outDateTime;
-				}
+				loggedOn = (DateTime)record["loggedOn"];
 			}
 
 			#endregion
@@ -312,39 +308,39 @@ namespace WebVella.Erp.Plugins.Project.Controllers
 			}
 		}
 
-		[Route("api/v3.0/p/project/timelog/stop")]
-		[HttpPost]
-		public ActionResult StopTimeLog([FromQuery]Guid taskId)
-		{
-			var response = new ResponseModel();
-			//Validate
+		//[Route("api/v3.0/p/project/timelog/stop")]
+		//[HttpPost]
+		//public ActionResult StopTimeLog([FromQuery]Guid taskId)
+		//{
+		//	var response = new ResponseModel();
+		//	//Validate
 
-			using (var connection = DbContext.Current.CreateConnection())
-			{
-				try
-				{
-					connection.BeginTransaction();
+		//	using (var connection = DbContext.Current.CreateConnection())
+		//	{
+		//		try
+		//		{
+		//			connection.BeginTransaction();
 
-					new TaskService().StopTaskTimelog(taskId);
+		//			new TaskService().StopTaskTimelog(taskId);
 
-					//Create Time log
+		//			//Create Time log
 
-					connection.CommitTransaction();
+		//			connection.CommitTransaction();
 
-					response.Success = true;
-					response.Message = "Log Stopped";
-					return Json(response);
-				}
-				catch (Exception ex)
-				{
-					connection.RollbackTransaction();
+		//			response.Success = true;
+		//			response.Message = "Log Stopped";
+		//			return Json(response);
+		//		}
+		//		catch (Exception ex)
+		//		{
+		//			connection.RollbackTransaction();
 
-					response.Success = false;
-					response.Message = ex.Message;
-					return Json(response);
-				}
-			}
-		}
+		//			response.Success = false;
+		//			response.Message = ex.Message;
+		//			return Json(response);
+		//		}
+		//	}
+		//}
 
 		[Route("api/v3.0/p/project/task/status")]
 		[HttpPost]

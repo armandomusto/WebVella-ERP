@@ -26,9 +26,6 @@ namespace WebVella.Erp.Plugins.SDK.Pages.Page
 
 		private void InitPage()
 		{
-
-			Init();
-
 			#region << Init Page >>
 			var pageServ = new PageService();
 			ErpPage = pageServ.GetPage(RecordId ?? Guid.Empty);
@@ -46,6 +43,10 @@ namespace WebVella.Erp.Plugins.SDK.Pages.Page
 
 		public IActionResult OnGet()
 		{
+			var initResult = Init();
+			if (initResult != null)
+				return initResult;
+
 			InitPage();
 
 			if (ErpPage == null)
@@ -54,12 +55,18 @@ namespace WebVella.Erp.Plugins.SDK.Pages.Page
 			}
 
 			ErpRequestContext.PageContext = PageContext;
+
+			BeforeRender();
 			return Page();
 		}
 
 		public IActionResult OnPost()
 		{
 			if (!ModelState.IsValid) throw new Exception("Antiforgery check failed.");
+
+			var initResult = Init();
+			if (initResult != null)
+				return initResult;
 
 			InitPage();
 
@@ -88,6 +95,8 @@ namespace WebVella.Erp.Plugins.SDK.Pages.Page
 			}
 
 			ErpRequestContext.PageContext = PageContext;
+
+			BeforeRender();
 			return Page();
 		}
 	}

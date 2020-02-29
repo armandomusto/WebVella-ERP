@@ -125,8 +125,6 @@ namespace WebVella.Erp.Plugins.SDK.Pages.ErpEntity
 
 		public void InitPage()
 		{
-			Init();
-
 			var entMan = new EntityManager();
 			ErpEntity = entMan.ReadEntity(ParentRecordId ?? Guid.Empty).Object;
 			if (ErpEntity == null) return;
@@ -240,7 +238,7 @@ namespace WebVella.Erp.Plugins.SDK.Pages.ErpEntity
 							System = typedInput.System;
 							PlaceholderText = typedInput.PlaceholderText;
 							Searchable = typedInput.Searchable;
-							DefaultValue = (typedInput.DefaultValue != null ? typedInput.DefaultValue.ToString() : "");
+							DefaultValue = (typedInput.DefaultValue != null ? typedInput.DefaultValue.ToString() : "NULL");
 							EnableSecurity = typedInput.EnableSecurity;
 							MaxLength = typedInput.MaxLength;
 						}
@@ -257,7 +255,7 @@ namespace WebVella.Erp.Plugins.SDK.Pages.ErpEntity
 							System = typedInput.System;
 							PlaceholderText = typedInput.PlaceholderText;
 							Searchable = typedInput.Searchable;
-							DefaultValue = (typedInput.DefaultValue != null ? typedInput.DefaultValue.ToString() : "");
+							DefaultValue = (typedInput.DefaultValue != null ? typedInput.DefaultValue.ToString() : "NULL");
 							EnableSecurity = typedInput.EnableSecurity;
 						}
 						break;
@@ -273,7 +271,7 @@ namespace WebVella.Erp.Plugins.SDK.Pages.ErpEntity
 							System = typedInput.System;
 							PlaceholderText = typedInput.PlaceholderText;
 							Searchable = typedInput.Searchable;
-							DefaultValue = (typedInput.DefaultValue != null ? typedInput.DefaultValue.ToString() : "");
+							DefaultValue = (typedInput.DefaultValue != null ? typedInput.DefaultValue.ToString() : "NULL");
 							EnableSecurity = typedInput.EnableSecurity;
 						}
 						break;
@@ -289,7 +287,7 @@ namespace WebVella.Erp.Plugins.SDK.Pages.ErpEntity
 							System = typedInput.System;
 							PlaceholderText = typedInput.PlaceholderText;
 							Searchable = typedInput.Searchable;
-							DefaultValue = (typedInput.DefaultValue != null ? typedInput.DefaultValue.ToString() : "");
+							DefaultValue = (typedInput.DefaultValue != null ? typedInput.DefaultValue.ToString() : "NULL");
 							EnableSecurity = typedInput.EnableSecurity;
 						}
 						break;
@@ -305,7 +303,7 @@ namespace WebVella.Erp.Plugins.SDK.Pages.ErpEntity
 							System = typedInput.System;
 							PlaceholderText = typedInput.PlaceholderText;
 							Searchable = typedInput.Searchable;
-							DefaultValue = (typedInput.DefaultValue != null ? typedInput.DefaultValue.ToString() : "");
+							DefaultValue = (typedInput.DefaultValue != null ? typedInput.DefaultValue.ToString() : "NULL");
 							EnableSecurity = typedInput.EnableSecurity;
 							MaxLength = typedInput.MaxLength;
 						}
@@ -419,7 +417,7 @@ namespace WebVella.Erp.Plugins.SDK.Pages.ErpEntity
 							System = typedInput.System;
 							PlaceholderText = typedInput.PlaceholderText;
 							Searchable = typedInput.Searchable;
-							DefaultValue = (typedInput.DefaultValue != null ? typedInput.DefaultValue.ToString() : "");
+							DefaultValue = (typedInput.DefaultValue != null ? typedInput.DefaultValue.ToString() : "NULL");
 							EnableSecurity = typedInput.EnableSecurity;
 							MaxLength = typedInput.MaxLength;
 						}
@@ -490,7 +488,7 @@ namespace WebVella.Erp.Plugins.SDK.Pages.ErpEntity
 							System = typedInput.System;
 							PlaceholderText = typedInput.PlaceholderText;
 							Searchable = typedInput.Searchable;
-							DefaultValue = (typedInput.DefaultValue != null ? typedInput.DefaultValue.ToString() : "");
+							DefaultValue = (typedInput.DefaultValue != null ? typedInput.DefaultValue.ToString() : "NULL");
 							EnableSecurity = typedInput.EnableSecurity;
 							MaxLength = typedInput.MaxLength;
 						}
@@ -507,7 +505,7 @@ namespace WebVella.Erp.Plugins.SDK.Pages.ErpEntity
 							System = typedInput.System;
 							PlaceholderText = typedInput.PlaceholderText;
 							Searchable = typedInput.Searchable;
-							DefaultValue = (typedInput.DefaultValue != null ? typedInput.DefaultValue.ToString() : "");
+							DefaultValue = (typedInput.DefaultValue != null ? typedInput.DefaultValue.ToString() : "NULL");
 							EnableSecurity = typedInput.EnableSecurity;
 							MaxLength = typedInput.MaxLength;
 							OpenTargetInNewWindow = typedInput.OpenTargetInNewWindow ?? false;
@@ -584,6 +582,10 @@ namespace WebVella.Erp.Plugins.SDK.Pages.ErpEntity
 		}
 		public IActionResult OnGet()
 		{
+			var initResult = Init();
+			if (initResult != null)
+				return initResult;
+
 			InitPage();
 
 			if (ErpEntity == null)
@@ -598,12 +600,18 @@ namespace WebVella.Erp.Plugins.SDK.Pages.ErpEntity
 
 			HeaderToolbar.AddRange(AdminPageUtils.GetEntityAdminSubNav(ErpEntity, "fields"));
 			ErpRequestContext.PageContext = PageContext;
+
+			BeforeRender();
 			return Page();
 		}
 
 		public IActionResult OnPost()
 		{
 			if (!ModelState.IsValid) throw new Exception("Antiforgery check failed.");
+
+			var initResult = Init();
+			if (initResult != null)
+				return initResult;
 
 			InitPage();
 
@@ -617,6 +625,10 @@ namespace WebVella.Erp.Plugins.SDK.Pages.ErpEntity
 				ReturnUrl = $"/sdk/objects/entity/r/{RecordId}/rl/fields/c/select";
 			}
 
+			//empty html input is not posted, so we init it with string.empty
+			if (DefaultValue == null)
+				DefaultValue = string.Empty;
+
 			var entMan = new EntityManager();
 			try
 			{
@@ -627,11 +639,12 @@ namespace WebVella.Erp.Plugins.SDK.Pages.ErpEntity
 				{
 					case FieldType.AutoNumberField:
 						{
-							decimal? defaultDecimal = null;
+							decimal defaultDecimal = 1;
 							if (Decimal.TryParse(DefaultValue, out decimal result))
 							{
 								defaultDecimal = result;
 							}
+						
 							input = new InputAutoNumberField()
 							{
 								Id = fieldId,
@@ -756,6 +769,12 @@ namespace WebVella.Erp.Plugins.SDK.Pages.ErpEntity
 						break;
 					case FieldType.EmailField:
 						{
+							string defaultValue = null;
+							if (DefaultValue.ToLowerInvariant() != "null")
+							{
+								defaultValue = DefaultValue;
+							}
+
 							input = new InputEmailField()
 							{
 								Id = fieldId,
@@ -768,7 +787,7 @@ namespace WebVella.Erp.Plugins.SDK.Pages.ErpEntity
 								System = System,
 								PlaceholderText = PlaceholderText,
 								Searchable = Searchable,
-								DefaultValue = DefaultValue,
+								DefaultValue = defaultValue,
 								EnableSecurity = EnableSecurity,
 								MaxLength = MaxLength
 							};
@@ -776,6 +795,12 @@ namespace WebVella.Erp.Plugins.SDK.Pages.ErpEntity
 						break;
 					case FieldType.FileField:
 						{
+							string defaultValue = null;
+							if (DefaultValue.ToLowerInvariant() != "null")
+							{
+								defaultValue = DefaultValue;
+							}
+
 							input = new InputFileField()
 							{
 								Id = fieldId,
@@ -788,13 +813,19 @@ namespace WebVella.Erp.Plugins.SDK.Pages.ErpEntity
 								System = System,
 								PlaceholderText = PlaceholderText,
 								Searchable = Searchable,
-								DefaultValue = DefaultValue,
+								DefaultValue = defaultValue,
 								EnableSecurity = EnableSecurity,
 							};
 						}
 						break;
 					case FieldType.HtmlField:
 						{
+							string defaultValue = null;
+							if (DefaultValue.ToLowerInvariant() != "null")
+							{
+								defaultValue = DefaultValue;
+							}
+
 							input = new InputHtmlField()
 							{
 								Id = fieldId,
@@ -807,13 +838,19 @@ namespace WebVella.Erp.Plugins.SDK.Pages.ErpEntity
 								System = System,
 								PlaceholderText = PlaceholderText,
 								Searchable = Searchable,
-								DefaultValue = DefaultValue,
+								DefaultValue = defaultValue,
 								EnableSecurity = EnableSecurity,
 							};
 						}
 						break;
 					case FieldType.ImageField:
 						{
+							string defaultValue = null;
+							if (DefaultValue.ToLowerInvariant() != "null")
+							{
+								defaultValue = DefaultValue;
+							}
+
 							input = new InputImageField()
 							{
 								Id = fieldId,
@@ -826,13 +863,19 @@ namespace WebVella.Erp.Plugins.SDK.Pages.ErpEntity
 								System = System,
 								PlaceholderText = PlaceholderText,
 								Searchable = Searchable,
-								DefaultValue = DefaultValue,
+								DefaultValue = defaultValue,
 								EnableSecurity = EnableSecurity,
 							};
 						}
 						break;
 					case FieldType.MultiLineTextField:
 						{
+							string defaultValue = null;
+							if (DefaultValue.ToLowerInvariant() != "null")
+							{
+								defaultValue = DefaultValue;
+							}
+
 							input = new InputMultiLineTextField()
 							{
 								Id = fieldId,
@@ -845,7 +888,7 @@ namespace WebVella.Erp.Plugins.SDK.Pages.ErpEntity
 								System = System,
 								PlaceholderText = PlaceholderText,
 								Searchable = Searchable,
-								DefaultValue = DefaultValue,
+								DefaultValue = defaultValue,
 								EnableSecurity = EnableSecurity,
 								MaxLength = MaxLength
 							};
@@ -1008,6 +1051,12 @@ namespace WebVella.Erp.Plugins.SDK.Pages.ErpEntity
 						break;
 					case FieldType.PhoneField:
 						{
+							string defaultValue = null;
+							if (DefaultValue != null && DefaultValue.ToLowerInvariant() != "null")
+							{
+								defaultValue = DefaultValue;
+							}
+
 							input = new InputPhoneField()
 							{
 								Id = fieldId,
@@ -1020,7 +1069,7 @@ namespace WebVella.Erp.Plugins.SDK.Pages.ErpEntity
 								System = System,
 								PlaceholderText = PlaceholderText,
 								Searchable = Searchable,
-								DefaultValue = DefaultValue,
+								DefaultValue = defaultValue,
 								EnableSecurity = EnableSecurity,
 								MaxLength = MaxLength
 							};
@@ -1125,6 +1174,12 @@ namespace WebVella.Erp.Plugins.SDK.Pages.ErpEntity
 						break;
 					case FieldType.UrlField:
 						{
+							string defaultValue = null;
+							if (DefaultValue.ToLowerInvariant() != "null")
+							{
+								defaultValue = DefaultValue;
+							}
+
 							input = new InputUrlField()
 							{
 								Id = fieldId,
@@ -1137,7 +1192,7 @@ namespace WebVella.Erp.Plugins.SDK.Pages.ErpEntity
 								System = System,
 								PlaceholderText = PlaceholderText,
 								Searchable = Searchable,
-								DefaultValue = DefaultValue,
+								DefaultValue = defaultValue,
 								EnableSecurity = EnableSecurity,
 								MaxLength = MaxLength,
 								OpenTargetInNewWindow = OpenTargetInNewWindow
@@ -1146,6 +1201,12 @@ namespace WebVella.Erp.Plugins.SDK.Pages.ErpEntity
 						break;
 					case FieldType.TextField:
 						{
+							string defaultValue = null;
+							if (DefaultValue.ToLowerInvariant() != "null")
+							{
+								defaultValue = DefaultValue;
+							}
+
 							input = new InputTextField()
 							{
 								Id = fieldId,
@@ -1158,7 +1219,7 @@ namespace WebVella.Erp.Plugins.SDK.Pages.ErpEntity
 								System = System,
 								PlaceholderText = PlaceholderText,
 								Searchable = Searchable,
-								DefaultValue = DefaultValue,
+								DefaultValue = defaultValue,
 								EnableSecurity = EnableSecurity,
 								MaxLength = MaxLength
 							};
@@ -1216,6 +1277,7 @@ namespace WebVella.Erp.Plugins.SDK.Pages.ErpEntity
 
 			HeaderToolbar.AddRange(AdminPageUtils.GetEntityAdminSubNav(ErpEntity, "fields"));
 
+			BeforeRender();
 			return Page();
 		}
 	}

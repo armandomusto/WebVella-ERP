@@ -24,7 +24,10 @@ namespace WebVella.Erp.Api
         private List<ErrorModel> ValidateRelation(EntityRelation relation, ValidationType validationType)
         {
             List<ErrorModel> errors = new List<ErrorModel>();
-			var entMan = new EntityManager();
+			   var entMan = new EntityManager();
+				//Postgres column name width limit
+				if(relation.Name.Length > 63)
+					errors.Add(new ErrorModel("name", relation.Name, "Relation name length exceeded. Should be up to 63 chars!"));
             if (validationType == ValidationType.Update)
             {
                 //we cannot update relation with missing Id (Guid.Empty means id is missing)
@@ -262,9 +265,10 @@ namespace WebVella.Erp.Api
             catch (Exception e)
             {
                 response.Success = false;
-#if DEBUG
-                response.Message = e.Message + e.StackTrace;
-#endif
+				
+				if (ErpSettings.DevelopmentMode)
+					response.Message = e.Message + e.StackTrace;
+
                 return response;
             }
         }
@@ -303,9 +307,8 @@ namespace WebVella.Erp.Api
             catch (Exception e)
             {
                 response.Success = false;
-#if DEBUG
-                response.Message = e.Message + e.StackTrace;
-#endif
+				if (ErpSettings.DevelopmentMode)
+					response.Message = e.Message + e.StackTrace;
                 return response;
             }
         }
@@ -360,9 +363,8 @@ namespace WebVella.Erp.Api
                 response.Object = null;
 				response.Hash = null;
                 response.Timestamp = DateTime.UtcNow;
-#if DEBUG
-                response.Message = e.Message + e.StackTrace;
-#endif
+				if (ErpSettings.DevelopmentMode)
+					response.Message = e.Message + e.StackTrace;
                 return response;
             }
         }
@@ -395,11 +397,13 @@ namespace WebVella.Erp.Api
             {
                 var storageRelation = relation.MapTo<DbEntityRelation>();
 
-                if (storageRelation.Id == Guid.Empty)
+				storageRelation.Name = storageRelation.Name.Trim();
+
+				if (storageRelation.Id == Guid.Empty)
                     storageRelation.Id = Guid.NewGuid();
 
                 var success = DbContext.Current.RelationRepository.Create(storageRelation);
-				Cache.ClearRelations();
+				Cache.Clear();
                 if (success)
                 {
                     response.Success = true;
@@ -416,15 +420,16 @@ namespace WebVella.Erp.Api
             }
             catch (Exception e)
             {
-				Cache.ClearRelations();
+				Cache.Clear();
                 response.Success = false;
                 response.Object = relation;
                 response.Timestamp = DateTime.UtcNow;
-#if DEBUG
-                response.Message = e.Message + e.StackTrace;
-#else
-                response.Message = "The entity relation was not created. An internal error occurred!";
-#endif
+				
+				if (ErpSettings.DevelopmentMode)
+					response.Message = e.Message + e.StackTrace;
+				else
+					response.Message = "The entity relation was not created. An internal error occurred!";
+
                 return response;
             }
         }
@@ -456,8 +461,9 @@ namespace WebVella.Erp.Api
             try
             {
                 var storageRelation = relation.MapTo<DbEntityRelation>();
-                var success = DbContext.Current.RelationRepository.Update(storageRelation);
-				Cache.ClearRelations();
+				storageRelation.Name = storageRelation.Name.Trim();
+				var success = DbContext.Current.RelationRepository.Update(storageRelation);
+				Cache.Clear();
                 if (success)
                 {
                     response.Success = true;
@@ -474,15 +480,16 @@ namespace WebVella.Erp.Api
             }
             catch (Exception e)
             {
-                Cache.ClearRelations();
+                Cache.Clear();
 				response.Success = false;
                 response.Object = relation;
                 response.Timestamp = DateTime.UtcNow;
-#if DEBUG
-                response.Message = e.Message + e.StackTrace;
-#else
-                response.Message = "The entity relation was not updated. An internal error occurred!";
-#endif
+				
+				if (ErpSettings.DevelopmentMode)
+					response.Message = e.Message + e.StackTrace;
+				else
+					response.Message = "The entity relation was not updated. An internal error occurred!";
+
                 return response;
             }
         }
@@ -508,7 +515,7 @@ namespace WebVella.Erp.Api
 			{
 
                 var storageRelation = DbContext.Current.RelationRepository.Read(relationId);
-				Cache.ClearRelations();
+				Cache.Clear();
                 if (storageRelation != null)
                 {
 					DbContext.Current.RelationRepository.Delete(relationId);
@@ -525,12 +532,13 @@ namespace WebVella.Erp.Api
             }
             catch (Exception e)
             {
-				Cache.ClearRelations();
-#if DEBUG
-                response.Message = string.Format("Relation ID: {0}, /r/nMessage:{1}/r/nStackTrace:{2}", relationId, e.Message, e.StackTrace);
-#else
-                response.Message = "The entity relation was not delete. An internal error occurred!";
-#endif
+				Cache.Clear();
+				
+				if (ErpSettings.DevelopmentMode)
+					response.Message = string.Format("Relation ID: {0}, /r/nMessage:{1}/r/nStackTrace:{2}", relationId, e.Message, e.StackTrace);
+				else
+					response.Message = "The entity relation was not delete. An internal error occurred!";
+
                 return response;
             }
         }

@@ -13,10 +13,11 @@ using System.Linq;
 using WebVella.Erp.Api;
 using WebVella.Erp.Api.Models;
 using WebVella.Erp.Api.Models.AutoMapper;
+using WebVella.Erp.Exceptions;
 using WebVella.Erp.Web.Models;
 using WebVella.Erp.Web.Repositories;
-using WebVella.Erp.Exceptions;
-
+using static WebVella.Erp.Web.Components.PcFieldHtml;
+using static WebVella.Erp.Web.Components.PcHtmlBlock;
 
 namespace WebVella.Erp.Web.Services
 {
@@ -92,10 +93,10 @@ namespace WebVella.Erp.Web.Services
 		/// </summary>
 		/// <param name="appId"></param>
 		/// <returns></returns>
-		public List<ErpPage> GetAppPages(Guid appId, NpgsqlTransaction transaction = null)
+		public List<ErpPage> GetAppControlledPages(Guid appId, NpgsqlTransaction transaction = null)
 		{
 			var pages = GetAll(transaction);
-			return pages.FindAll(x => x.AppId == appId && x.Type == PageType.Application).OrderBy(x => x.Weight).ThenBy(x => x.Label).ToList();
+			return pages.FindAll(x => x.AppId == appId).OrderBy(x => x.Weight).ThenBy(x => x.Label).ToList();
 		}
 
 		/// <summary>
@@ -197,7 +198,7 @@ namespace WebVella.Erp.Web.Services
 
 			ValidationException ex = new ValidationException();
 
-			var page = pageRepository.GetById(id);
+			var page = pageRepository.GetById(id, transaction);
 			if (page != null)
 				ex.AddError("id", "There is an existing page with specified identifier.");
 
@@ -253,7 +254,7 @@ namespace WebVella.Erp.Web.Services
 
 			ValidationException ex = new ValidationException();
 
-			var page = pageRepository.GetById(id);
+			var page = pageRepository.GetById(id, transaction);
 			if (page == null)
 				ex.AddError("id", "There is no page for specified identifier.");
 
@@ -362,7 +363,7 @@ namespace WebVella.Erp.Web.Services
 		private string GetRazorBodyFromFileSystem(Guid pageId, NpgsqlTransaction transaction = null)
 		{
 			var pageRepository = new ErpPageRepository(connectionString);
-			var pageRow = pageRepository.GetById(pageId, transaction );
+			var pageRow = pageRepository.GetById(pageId, transaction);
 			if (pageRow == null)
 				throw new ValidationException("Page is not found.");
 
@@ -372,7 +373,7 @@ namespace WebVella.Erp.Web.Services
 			//if(!page.IsRazorBody)
 			//	throw new ValidationException("Page body is not in razor format.");
 
-			var env = ErpAppContext.Current.ServiceProvider.GetService<IHostingEnvironment>();
+			var env = ErpAppContext.Current.ServiceProvider.GetService<IWebHostEnvironment>();
 			var erpViewsFolderPath = Path.Combine(env.ContentRootPath, "Pages", "WV", "Pages");
 			if (!Directory.Exists(erpViewsFolderPath))
 				throw new ValidationException("Content folder is not found on file system.");
@@ -419,7 +420,7 @@ namespace WebVella.Erp.Web.Services
 		/// <param name="content"></param>
 		private void SavePageBodyContentOnFileSystem(Guid pageId, string content)
 		{
-			var env = ErpAppContext.Current.ServiceProvider.GetService<IHostingEnvironment>();
+			var env = ErpAppContext.Current.ServiceProvider.GetService<IWebHostEnvironment>();
 			var erpViewsFolderPath = Path.Combine(env.ContentRootPath, "Pages", "WV", "Pages");
 			if (!Directory.Exists(erpViewsFolderPath))
 				Directory.CreateDirectory(erpViewsFolderPath);
@@ -447,7 +448,7 @@ namespace WebVella.Erp.Web.Services
 		/// <param name="content"></param>
 		private void DeletePageBodyContentOnFileSystem(Guid pageId)
 		{
-			var env = ErpAppContext.Current.ServiceProvider.GetService<IHostingEnvironment>();
+			var env = ErpAppContext.Current.ServiceProvider.GetService<IWebHostEnvironment>();
 			var erpViewsFolderPath = Path.Combine(env.ContentRootPath, "Pages", "WV", "Pages");
 			var filepath = Path.Combine(erpViewsFolderPath, $"{pageId}.cshtml");
 			if (File.Exists(filepath))
@@ -692,11 +693,26 @@ namespace WebVella.Erp.Web.Services
 			string componentName, string containerId, string options, NpgsqlTransaction transaction = null)
 		{
 			PageBodyNodeRepository nodeRep = new PageBodyNodeRepository(connectionString);
-			DataRow node = nodeRep.GetById(id,transaction);
+			DataRow node = nodeRep.GetById(id, transaction);
 			if (node != null)
 				throw new Exception("Node with same ID already exists.");
 
 			//TODO MORE VALIDATION
+
+			//Problem with serialization of <script> tags
+			if(componentName == "PcHtmlBlock"){
+				var blockOptions = JsonConvert.DeserializeObject<PcHtmlBlockOptions>(options);
+				if(blockOptions.Html.Contains("<script>") || blockOptions.Html.Contains("</script>")){
+					throw new Exception("<script> tags are not supported in html block. Please use Javascript block component instead");
+				}
+			}
+			else if(componentName == "PcFieldHtml"){
+				var blockOptions = JsonConvert.DeserializeObject<PcFieldHtmlOptions>(options);
+				if(blockOptions.Value.Contains("<script>") || blockOptions.Value.Contains("</script>")){
+					throw new Exception("<script> tags are not supported in html field. Please use Javascript block component instead");
+				}
+
+			}
 
 			new PageBodyNodeRepository(connectionString).Insert(id, parentId, pageId, nodeId, weight, componentName, containerId, options, transaction);
 
@@ -725,6 +741,21 @@ namespace WebVella.Erp.Web.Services
 
 			//TODO MORE VALIDATION
 
+			//Problem with serialization of <script> tags
+			if(componentName == "PcHtmlBlock"){
+				var blockOptions = JsonConvert.DeserializeObject<PcHtmlBlockOptions>(options);
+				if(blockOptions.Html.Contains("<script>") || blockOptions.Html.Contains("</script>")){
+					throw new Exception("<script> tags are not supported in html block. Please use Javascript block component instead");
+				}
+			}
+			else if(componentName == "PcFieldHtml"){
+				var blockOptions = JsonConvert.DeserializeObject<PcFieldHtmlOptions>(options);
+				if(blockOptions.Value.Contains("<script>") || blockOptions.Value.Contains("</script>")){
+					throw new Exception("<script> tags are not supported in html field. Please use Javascript block component instead");
+				}
+
+			}
+
 			nodeRep.Update(id, parentId, pageId, nodeId, weight, componentName, containerId, options, transaction);
 
 			ClearPagesCache();
@@ -741,7 +772,7 @@ namespace WebVella.Erp.Web.Services
 		{
 			PageBodyNodeRepository nodeRep = new PageBodyNodeRepository(connectionString);
 			DataRow node = nodeRep.GetById(id, transaction);
-			if( node == null )
+			if (node == null)
 				throw new Exception("Node you try to update does not exist.");
 
 			nodeRep.Update(id, options, transaction);
@@ -854,10 +885,28 @@ namespace WebVella.Erp.Web.Services
 		"RecordId", "RelatedRecordId","RelationId","PageContext","Page","ParentPage","Entity","ParentEntity","Message","Validation",
 		"Detection","App","SitemapNode","SitemapArea","RowRecord" };
 
+		/// <summary>
+		/// Returns all page data sources
+		/// </summary>
+		/// <param name="pageId"></param>
+		/// <param name="transaction"></param>
+		/// <returns></returns>
 		public List<PageDataSource> GetPageDataSources(Guid pageId, NpgsqlTransaction transaction = null)
 		{
 			var pageDataSourceRep = new PageDataSourceRepository(connectionString);
 			return pageDataSourceRep.GetByPageId(pageId, transaction).Rows.MapTo<PageDataSource>();
+		}
+
+		/// <summary>
+		/// Gets page data source records for specified data source id
+		/// </summary>
+		/// <param name="dataSourceId"></param>
+		/// <param name="transaction"></param>
+		/// <returns></returns>
+		public List<PageDataSource> GetPageDataSourcesByDataSourceId(Guid dataSourceId, NpgsqlTransaction transaction = null)
+		{
+			var pageDataSourceRep = new PageDataSourceRepository(connectionString);
+			return pageDataSourceRep.GetByDataSourceId(dataSourceId, transaction).Rows.MapTo<PageDataSource>();
 		}
 
 		/// <summary>
@@ -897,6 +946,42 @@ namespace WebVella.Erp.Web.Services
 		}
 
 		/// <summary>
+		/// Creates new page data source
+		/// </summary>
+		/// <param name="id"></param>
+		/// <param name="pageId"></param>
+		/// <param name="dataSourceId"></param>
+		/// <param name="name"></param>
+		/// <param name="parameters"></param>
+		/// <param name="transaction"></param>
+		public void CreatePageDataSource(Guid id, Guid pageId, Guid dataSourceId, string name, string parametersJson, NpgsqlTransaction transaction = null)
+		{
+			var pageDataSourceRep = new PageDataSourceRepository(connectionString);
+			var existingDataSources = GetPageDataSources(pageId, transaction);
+			ValidationException ex = new ValidationException();
+
+			var pds = pageDataSourceRep.GetById(id, transaction);
+			if (pds != null)
+				ex.AddError("id", "There is an existing page data source with specified identifier.");
+
+			if (string.IsNullOrWhiteSpace(name))
+				ex.AddError("name", "Page data source name is not specified.");
+			else
+			{
+				if (existingDataSources.Any(x => x.Name.ToLowerInvariant() == name.ToLowerInvariant()))
+					ex.AddError("name", "Page data source with same name already exists.");
+
+				if (reservedDataSourcesNames.Any(x => x.ToLowerInvariant() == name.ToLowerInvariant()))
+					ex.AddError("name", "Specified page data source name is reserved.");
+			}
+
+			ex.CheckAndThrow();
+
+			pageDataSourceRep.Insert(id, pageId, dataSourceId, name, parametersJson, transaction);
+		}
+
+
+		/// <summary>
 		/// Updates existing page data source
 		/// </summary>
 		/// <param name="id"></param>
@@ -932,6 +1017,40 @@ namespace WebVella.Erp.Web.Services
 		}
 
 		/// <summary>
+		/// Updates existing page data source
+		/// </summary>
+		/// <param name="id"></param>
+		/// <param name="pageId"></param>
+		/// <param name="dataSourceId"></param>
+		/// <param name="name"></param>
+		/// <param name="parametersJson"></param>
+		/// <param name="transaction"></param>
+		public void UpdatePageDataSource(Guid id, Guid pageId, Guid dataSourceId, string name, string parametersJson, NpgsqlTransaction transaction = null)
+		{
+			var pageDataSourceRep = new PageDataSourceRepository(connectionString);
+			var existingDataSources = GetPageDataSources(pageId, transaction);
+			ValidationException ex = new ValidationException();
+
+			var pds = pageDataSourceRep.GetById(id, transaction);
+			if (pds == null)
+				ex.AddError("id", "There is no existing page data source with specified identifier.");
+
+			if (string.IsNullOrWhiteSpace(name))
+				ex.AddError("name", "Page data source name is not specified.");
+			else
+			{
+				if (existingDataSources.Any(x => x.Name.ToLowerInvariant() == name.ToLowerInvariant() && x.Id != id))
+					ex.AddError("name", "Page data source with same name already exists.");
+
+				if (reservedDataSourcesNames.Any(x => x.ToLowerInvariant() == name.ToLowerInvariant()))
+					ex.AddError("name", "Specified page data source name is reserved.");
+			}
+			ex.CheckAndThrow();
+
+			pageDataSourceRep.Update(id, pageId, dataSourceId, name, parametersJson, transaction);
+		}
+
+		/// <summary>
 		/// Deletes page data source
 		/// </summary>
 		/// <param name="id"></param>
@@ -939,8 +1058,8 @@ namespace WebVella.Erp.Web.Services
 		public void DeletePageDataSource(Guid id, NpgsqlTransaction transaction = null)
 		{
 			PageDataSourceRepository dsRep = new PageDataSourceRepository(connectionString);
-			var ds = dsRep.GetById(id, transaction );
-			if( ds == null )
+			var ds = dsRep.GetById(id, transaction);
+			if (ds == null)
 				throw new Exception("Page data source you try to delete does not exist.");
 
 			dsRep.Delete(id, transaction);
@@ -1109,30 +1228,101 @@ namespace WebVella.Erp.Web.Services
 					#region << Case 1 >>>
 					if (!String.IsNullOrWhiteSpace(pageName))
 					{
-						// Has Exact Node Match
-						resultPage = pages.FirstOrDefault(x => x.Type == pathPageType && x.EntityId == currentEntity.Id
-															&& x.NodeId == currentNode.Id && x.Name == pageName);
-						// No Exact Node Match (general case)
-						if (resultPage == null)
+						switch (pathPageType)
 						{
-							resultPage = pages.FirstOrDefault(x => x.Type == pathPageType && x.EntityId == currentEntity.Id
-																&& x.Name == pageName);
+							case PageType.RecordList:
+								if (currentNode.EntityListPages == null || currentNode.EntityListPages.Count == 0)
+									resultPage = pages.FirstOrDefault(x => x.Type == pathPageType && x.AppId == currentApp.Id && x.EntityId == currentEntity.Id
+													   && (x.NodeId == currentNode.Id || x.NodeId == null)
+													   && x.Name == pageName);
+								else
+									resultPage = pages.FirstOrDefault(x => x.Type == pathPageType && x.AppId == currentApp.Id && x.EntityId == currentEntity.Id
+									&& (x.NodeId == currentNode.Id || x.NodeId == null)
+									&& x.Name == pageName && currentNode.EntityListPages.Contains(x.Id));
+								break;
+							case PageType.RecordCreate:
+								if (currentNode.EntityCreatePages == null || currentNode.EntityCreatePages.Count == 0)
+									resultPage = pages.FirstOrDefault(x => x.Type == pathPageType && x.AppId == currentApp.Id && x.EntityId == currentEntity.Id
+													   && (x.NodeId == currentNode.Id || x.NodeId == null)
+													   && x.Name == pageName);
+								else
+									resultPage = pages.FirstOrDefault(x => x.Type == pathPageType && x.AppId == currentApp.Id && x.EntityId == currentEntity.Id
+									&& (x.NodeId == currentNode.Id || x.NodeId == null)
+									&& x.Name == pageName && currentNode.EntityCreatePages.Contains(x.Id));
+								break;
+							case PageType.RecordDetails:
+								if (currentNode.EntityDetailsPages == null || currentNode.EntityDetailsPages.Count == 0)
+									resultPage = pages.FirstOrDefault(x => x.Type == pathPageType && x.AppId == currentApp.Id && x.EntityId == currentEntity.Id
+													   && (x.NodeId == currentNode.Id || x.NodeId == null)
+													   && x.Name == pageName);
+								else
+									resultPage = pages.FirstOrDefault(x => x.Type == pathPageType && x.AppId == currentApp.Id && x.EntityId == currentEntity.Id
+									&& (x.NodeId == currentNode.Id || x.NodeId == null)
+									&& x.Name == pageName && currentNode.EntityDetailsPages.Contains(x.Id));
+								break;
+							case PageType.RecordManage:
+								if (currentNode.EntityManagePages == null || currentNode.EntityManagePages.Count == 0)
+									resultPage = pages.FirstOrDefault(x => x.Type == pathPageType && x.AppId == currentApp.Id && x.EntityId == currentEntity.Id
+													   && (x.NodeId == currentNode.Id || x.NodeId == null)
+													   && x.Name == pageName);
+								else
+									resultPage = pages.FirstOrDefault(x => x.Type == pathPageType && x.AppId == currentApp.Id && x.EntityId == currentEntity.Id
+									&& (x.NodeId == currentNode.Id || x.NodeId == null)
+									&& x.Name == pageName && currentNode.EntityManagePages.Contains(x.Id));
+								break;
+							default:
+								break;
 						}
+
 					}
 					#endregion
 
-					//Case 2 (default entity record details page)
+					//Case 2 (default entity record page) - page Name not given or not found or does not comply to restrictions
 					#region << Case 2 >>>
-					else
+					if (resultPage == null)
 					{
-						// Has Exact Node Match - this node has pages attached to it
-						resultPage = pages.FirstOrDefault(x => x.Type == pathPageType && x.EntityId == currentEntity.Id
-															&& x.NodeId == currentNode.Id);
-						// No Exact Node Match (general case) - this node does not have ANY page attached to it. In this case get all pages of this entity from this type
-						//that are attached to this app or has NO app. Pages attached to other apps should not be selected
-						if (resultPage == null)
+						//Check if node has Restrictions and if the page is in these restrictions
+
+						switch (pathPageType)
 						{
-							resultPage = pages.FirstOrDefault(x => x.Type == pathPageType && x.EntityId == currentEntity.Id && (x.AppId == currentApp.Id || x.AppId == null));
+							case PageType.RecordList:
+								if (currentNode.EntityListPages.Count == 0)
+									resultPage = pages.FirstOrDefault(x => x.Type == pathPageType && x.AppId == currentApp.Id && x.EntityId == currentEntity.Id
+										&& (x.NodeId == currentNode.Id || x.NodeId == null));
+								else
+									resultPage = pages.FirstOrDefault(x => x.Type == pathPageType && x.AppId == currentApp.Id && x.EntityId == currentEntity.Id
+										&& (x.NodeId == currentNode.Id || x.NodeId == null)
+										&& currentNode.EntityListPages.Contains(x.Id));
+								break;
+							case PageType.RecordCreate:
+								if (currentNode.EntityCreatePages.Count == 0)
+									resultPage = pages.FirstOrDefault(x => x.Type == pathPageType && x.AppId == currentApp.Id && x.EntityId == currentEntity.Id
+									   && (x.NodeId == currentNode.Id || x.NodeId == null));
+								else
+									resultPage = pages.FirstOrDefault(x => x.Type == pathPageType && x.AppId == currentApp.Id && x.EntityId == currentEntity.Id
+										&& (x.NodeId == currentNode.Id || x.NodeId == null)
+										&& currentNode.EntityCreatePages.Contains(x.Id));
+								break;
+							case PageType.RecordDetails:
+								if (currentNode.EntityDetailsPages.Count == 0)
+									resultPage = pages.FirstOrDefault(x => x.Type == pathPageType && x.AppId == currentApp.Id && x.EntityId == currentEntity.Id
+									   && (x.NodeId == currentNode.Id || x.NodeId == null));
+								else
+									resultPage = pages.FirstOrDefault(x => x.Type == pathPageType && x.AppId == currentApp.Id && x.EntityId == currentEntity.Id
+										&& (x.NodeId == currentNode.Id || x.NodeId == null)
+										&& currentNode.EntityDetailsPages.Contains(x.Id));
+								break;
+							case PageType.RecordManage:
+								if (currentNode.EntityManagePages.Count == 0)
+									resultPage = pages.FirstOrDefault(x => x.Type == pathPageType && x.AppId == currentApp.Id && x.EntityId == currentEntity.Id
+									  && (x.NodeId == currentNode.Id || x.NodeId == null));
+								else
+									resultPage = pages.FirstOrDefault(x => x.Type == pathPageType && x.AppId == currentApp.Id && x.EntityId == currentEntity.Id
+									&& (x.NodeId == currentNode.Id || x.NodeId == null)
+									&& currentNode.EntityManagePages.Contains(x.Id));
+								break;
+							default:
+								break;
 						}
 					}
 					#endregion
@@ -1216,13 +1406,14 @@ namespace WebVella.Erp.Web.Services
 			return null;
 		}
 
-		public EntityRecord ConvertFormPostToEntityRecord(HttpContext httpContext, Entity entity = null)
+		public EntityRecord ConvertFormPostToEntityRecord(HttpContext httpContext, Guid? recordId, Entity entity = null )
 		{
 			var resultRecord = new EntityRecord();
 			var allEntities = new EntityManager().ReadEntities().Object;
 
 			var fieldTypeDictionary = new Dictionary<string, FieldType>();
 			var relationsFieldTypeDictionary = new Dictionary<string, FieldType>();
+			var relationsFieldRelationTypeDictionary = new Dictionary<string, EntityRelationType>();
 
 			if (entity == null) return new EntityRecord();
 
@@ -1242,12 +1433,12 @@ namespace WebVella.Erp.Web.Services
 				{
 					string[] fieldSect = key.Split(".");
 					if (fieldSect.Length < 2)
-						throw new Exception($"'{key}' is not valid relational field.");
+						continue; //ignore this field
 
 					var relationName = fieldSect[0].Substring(1);
 					var relation = entityRelations.SingleOrDefault(x => x.Name.ToLowerInvariant() == relationName.ToLowerInvariant());
 					if (relation == null)
-						throw new Exception($"'{key}' relation is not found.");
+						continue; //ignore this field
 
 					Entity relatedEntity = null;
 					if (relation.OriginEntityId == entity.Id)
@@ -1257,10 +1448,12 @@ namespace WebVella.Erp.Web.Services
 
 					Field field = relatedEntity.Fields.SingleOrDefault(x => x.Name == fieldSect[1]);
 					if (field == null)
-						throw new Exception($" Field '{fieldSect[1]}' not found in entity '{relatedEntity.Name}'.");
+						continue; //ignore this field
 
 					fieldTypeDictionary[key] = FieldType.RelationField;
 					relationsFieldTypeDictionary[key] = field.GetFieldType();
+					relationsFieldRelationTypeDictionary[key] = relation.RelationType;
+
 				}
 
 				//A new struct Microsoft.Framework.Primitives.StringValues has been introduced to streamline handling of values that may be empty, single strings, or multiple strings. The value is implicitly convertable to and from string and string[], and also provides helpers like Concat and IsNullOrEmpty.
@@ -1273,18 +1466,43 @@ namespace WebVella.Erp.Web.Services
 
 			}
 
+			List<string> propertiesToRemove = new List<string>();
+			
 			var mappedRecord = new EntityRecord();
 			foreach (var key in resultRecord.Properties.Keys)
 			{
 				if (fieldTypeDictionary.ContainsKey(key))
 				{
+					EntityRelationType? relationType = null;
 					FieldType? relatedFieldType = null;
 					if (relationsFieldTypeDictionary.ContainsKey(key))
 						relatedFieldType = relationsFieldTypeDictionary[key];
+					
+					if (relationsFieldRelationTypeDictionary.ContainsKey(key))
+						relationType = relationsFieldRelationTypeDictionary[key];
+					
 
-					MapRecordToModelType(mappedRecord, resultRecord, key, fieldTypeDictionary[key], relatedFieldType);
+					try
+					{
+						MapRecordToModelType(mappedRecord, resultRecord, key, fieldTypeDictionary[key], relatedFieldType, relationType);
+					}
+					catch(Exception ex)
+					{
+						//we remove properties (relational type) where value is not from expected type.
+						//this is because there are pages with forms which posts custom, non related to entity meta data
+						if (ex.Message == "1000")
+							propertiesToRemove.Add(key);
+						else 
+							throw;
+					}
 				}
 			}
+			
+			foreach (string key in propertiesToRemove)
+				resultRecord.Properties.Remove(key);
+
+			if(!resultRecord.Properties.ContainsKey("id") && recordId.HasValue )
+				resultRecord["id"] = recordId.Value;
 
 			return mappedRecord;
 		}
@@ -1521,8 +1739,8 @@ namespace WebVella.Erp.Web.Services
 							var currentApp = requestContext.App;
 							if (currentApp != null)
 							{
-								var appPages = GetAppPages(currentApp.Id);
-								appPages = appPages.FindAll(x => x.Id != currentPage.Id).ToList();
+								var appPages = GetAppControlledPages(currentApp.Id);
+								appPages = appPages.FindAll(x => x.Id != currentPage.Id && x.Type == PageType.Application).ToList();
 
 								if (currentPage.AreaId != null)
 								{
@@ -1583,7 +1801,7 @@ namespace WebVella.Erp.Web.Services
 
 		#region <--- Private Utility Methods --->
 
-		private void MapRecordToModelType(EntityRecord mappedRecord, EntityRecord resultRecord, string key, FieldType fieldType, FieldType? relatedFieldType)
+		private void MapRecordToModelType(EntityRecord mappedRecord, EntityRecord resultRecord, string key, FieldType fieldType, FieldType? relatedFieldType, EntityRelationType? relationType )
 		{
 			switch (fieldType)
 			{
@@ -1678,7 +1896,7 @@ namespace WebVella.Erp.Web.Services
 				case FieldType.RelationField:
 					{
 						if (relatedFieldType == null)
-							throw new Exception("Related field type is not specified for selection.");
+							throw new Exception("1000");
 
 						var value = resultRecord[key];
 						bool isArray = value.GetType().IsArray;
@@ -1686,25 +1904,33 @@ namespace WebVella.Erp.Web.Services
 						{
 							case FieldType.GuidField:
 								{
-									List<Guid> list = new List<Guid>();
-									if (isArray)
+									if (relationType.HasValue && relationType == EntityRelationType.ManyToMany)
 									{
-										foreach (var guidString in (string[])value)
+										List<Guid> list = new List<Guid>();
+										if (isArray)
 										{
-											if (Guid.TryParse(guidString, out Guid guidValue))
+											foreach (var guidString in (string[])value)
+											{
+												if (Guid.TryParse(guidString, out Guid guidValue))
+													list.Add(guidValue);
+											}
+										}
+										else
+										{
+											if (Guid.TryParse(value.ToString(), out Guid guidValue))
 												list.Add(guidValue);
 										}
+										mappedRecord[key] = list;
 									}
 									else
 									{
 										if (Guid.TryParse(value.ToString(), out Guid guidValue))
-											list.Add(guidValue);
+											mappedRecord[key] = guidValue.ToString();
 									}
-									mappedRecord[key] = list;
 								}
 								break;
 							default:
-								throw new Exception("Not supported related field type is not specified for selection.");
+								throw new Exception("1000");
 						}
 					}
 					break;

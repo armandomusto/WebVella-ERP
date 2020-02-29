@@ -3,13 +3,14 @@ using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using WebVella.Erp.Api.Models;
 using WebVella.Erp.Exceptions;
 using WebVella.Erp.Web.Models;
 using WebVella.Erp.Web.Services;
 
 namespace WebVella.Erp.Web.Components
 {
-	[PageComponent(Label = "Repeater", Library = "WebVella", Description = "Repeats its content multiple times", Version = "0.0.1", IconClass = "ti-view-list")]
+	[PageComponent(Label = "Repeater", Library = "WebVella", Description = "Repeats its content multiple times", Version = "0.0.1", IconClass = "fas fa-grip-horizontal")]
 	public class PcRepeater : PageComponent
 	{
 		protected ErpRequestContext ErpRequestContext { get; set; }
@@ -23,6 +24,9 @@ namespace WebVella.Erp.Web.Components
 		{
 			//SHOULD HAVE # CONTAINERS => HEADER, BODY, FOOTER -> the body will be the repeater part, with options hasHeader, hasFooter
 
+			[JsonProperty(PropertyName = "is_visible")]
+			public string IsVisible { get; set; } = "";
+
 			[JsonProperty(PropertyName = "class")]
 			public string Class { get; set; } = "";
 
@@ -31,7 +35,10 @@ namespace WebVella.Erp.Web.Components
 
 			[JsonProperty(PropertyName = "has_footer")]
 			public bool HasFooter { get; set; } = false;
-		}
+
+            [JsonProperty(PropertyName = "records")]
+            public string Records { get; set; } = "";
+        }
 
 
 		public async Task<IViewComponentResult> InvokeAsync(PageComponentContext context)
@@ -42,7 +49,7 @@ namespace WebVella.Erp.Web.Components
 				#region << Init >>
 				if (context.Node == null)
 				{
-					return await Task.FromResult<IViewComponentResult>(Content("Error: The node Id is required to be set as query param 'nid', when requesting this component"));
+					return await Task.FromResult<IViewComponentResult>(Content("Error: The node Id is required to be set as query parameter 'nid', when requesting this component"));
 				}
 
 				var pageFromModel = context.DataModel.GetProperty("Page");
@@ -59,25 +66,44 @@ namespace WebVella.Erp.Web.Components
 					return await Task.FromResult<IViewComponentResult>(Content("Error: PageModel does not have Page property or it is not from ErpPage Type"));
 				}
 
-				var instanceOptions = new PcRepeaterOptions();
+				var options = new PcRepeaterOptions();
 				if (context.Options != null)
 				{
-					instanceOptions = JsonConvert.DeserializeObject<PcRepeaterOptions>(context.Options.ToString());
+					options = JsonConvert.DeserializeObject<PcRepeaterOptions>(context.Options.ToString());
 				}
 
 				var componentMeta = new PageComponentLibraryService().GetComponentMeta(context.Node.ComponentName);
 				#endregion
 
-
-
-				ViewBag.Options = instanceOptions;
+				ViewBag.Options = options;
 				ViewBag.Node = context.Node;
 				ViewBag.ComponentMeta = componentMeta;
 				ViewBag.AppContext = ErpAppContext.Current;
 				ViewBag.RequestContext = ErpRequestContext;
 				ViewBag.ComponentContext = context;
 
-				switch (context.Mode)
+                if (context.Mode != ComponentMode.Options && context.Mode != ComponentMode.Help)
+                {
+                    var isVisible = true;
+                    var isVisibleDS = context.DataModel.GetPropertyValueByDataSource(options.IsVisible);
+                    if (isVisibleDS is string && !String.IsNullOrWhiteSpace(isVisibleDS.ToString()))
+                    {
+                        if (Boolean.TryParse(isVisibleDS.ToString(), out bool outBool))
+                        {
+                            isVisible = outBool;
+                        }
+                    }
+                    else if (isVisibleDS is Boolean)
+                    {
+                        isVisible = (bool)isVisibleDS;
+                    }
+                    if (!isVisible && context.Mode == ComponentMode.Display)
+                        return await Task.FromResult<IViewComponentResult>(Content(""));
+
+                    ViewBag.Records = context.DataModel.GetPropertyValueByDataSource(options.Records) as List<EntityRecord> ?? new List<EntityRecord>();
+                }
+
+                switch (context.Mode)
 				{
 					case ComponentMode.Display:
 						return await Task.FromResult<IViewComponentResult>(View("Display"));

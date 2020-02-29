@@ -61,23 +61,25 @@ namespace WebVella.Erp.Plugins.SDK.Pages.Page
 		[BindProperty]
 		public string RazorBody { get; set; } = "";
 
-		private void InitPage()
-		{
-			Init();
-		}
-
+		
 		public IActionResult OnGet()
 		{
-			InitPage();
+			var initResult = Init();
+			if (initResult != null)
+				return initResult;
 
 			ErpRequestContext.PageContext = PageContext;
+
+			BeforeRender();
 			return Page();
 		}
 		public IActionResult OnPost()
 		{
 			if (!ModelState.IsValid) throw new Exception("Antiforgery check failed.");
 
-			InitPage();
+			var initResult = Init();
+			if (initResult != null)
+				return initResult;
 
 			var pageServ = new PageService();
 			try
@@ -94,6 +96,8 @@ namespace WebVella.Erp.Plugins.SDK.Pages.Page
 
 
 			ErpRequestContext.PageContext = PageContext;
+
+			BeforeRender();
 			return Page();
 		}
 	}

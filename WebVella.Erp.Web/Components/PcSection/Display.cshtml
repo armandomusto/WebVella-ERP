@@ -1,8 +1,9 @@
 ﻿@addTagHelper *, WebVella.Erp.Plugins.Core
 @addTagHelper *, WebVella.Erp.Web
+@addTagHelper *, WebVella.TagHelpers
+@using WebVella.Erp.Web.Utils;
 @using WebVella.Erp.Web.Components;
 @using WebVella.Erp.Web.Models;
-@using WebVella.Erp.Web.Utils;
 @{
 	var options = (PcSection.PcSectionOptions)ViewBag.Options;
 	var node = (PageBodyNode)ViewBag.Node;
@@ -10,7 +11,7 @@
 }
 <wv-section id="wv-@(node.Id)" body-class="@options.BodyClass" class="@options.Class" field-mode="@options.FieldMode"
 	label-mode="@options.LabelMode" is-card="@options.IsCard" is-collapsable="@options.IsCollapsable" is-collapsed="@options.IsCollapsed"
-	title="@ViewBag.ProcessedTitle" title-tag="@options.TitleTag">
+	title="@ViewBag.ProcessedTitle" title-tag="@options.TitleTag" is-visible="(bool)ViewBag.IsVisible">
 @foreach (var childNode in node.Nodes)
 {
 	var nodeComponentName = "";

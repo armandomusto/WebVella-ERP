@@ -55,58 +55,15 @@ namespace WebVella.Erp.Plugins.Project
 
 						#region << 3. Run methods based on the current installed version of the plugin >>
 
-						//duplicate this IF for next patches
+						//Patch 20190203
 						{
-							var patchVersion = 20190123;
+							var patchVersion = 20190203;
 							if (currentPluginSettings.Version < patchVersion)
 							{
 								try
 								{
 									currentPluginSettings.Version = patchVersion;
-									Patch20190123(entMan, relMan, recMan);
-								}
-								catch (ValidationException ex)
-								{
-									var exception = ex;
-									throw ex;
-								}
-								catch (Exception ex)
-								{
-									var exception = ex;
-									throw ex;
-								}
-							}
-						}
-						//duplicate this IF for next patches
-						{
-							var patchVersion = 20190124;
-							if (currentPluginSettings.Version < patchVersion)
-							{
-								try
-								{
-									currentPluginSettings.Version = patchVersion;
-									Patch20190124(entMan, relMan, recMan);
-								}
-								catch (ValidationException ex)
-								{
-									var exception = ex;
-									throw ex;
-								}
-								catch (Exception ex)
-								{
-									var exception = ex;
-									throw ex;
-								}
-							}
-						}
-						{
-							var patchVersion = 20190125;
-							if (currentPluginSettings.Version < patchVersion)
-							{
-								try
-								{
-									currentPluginSettings.Version = patchVersion;
-									Patch20190125(entMan, relMan, recMan);
+									Patch20190203(entMan, relMan, recMan);
 								}
 								catch (ValidationException ex)
 								{
@@ -121,15 +78,15 @@ namespace WebVella.Erp.Plugins.Project
 							}
 						}
 
-						//Patch 20190126
+						//Patch 20190205
 						{
-							var patchVersion = 20190126;
+							var patchVersion = 20190205;
 							if (currentPluginSettings.Version < patchVersion)
 							{
 								try
 								{
 									currentPluginSettings.Version = patchVersion;
-									Patch20190126(entMan, relMan, recMan);
+									Patch20190205(entMan, relMan, recMan);
 								}
 								catch (ValidationException ex)
 								{
@@ -144,15 +101,15 @@ namespace WebVella.Erp.Plugins.Project
 							}
 						}
 
-						//Patch 20190127
+						//Patch 20190206
 						{
-							var patchVersion = 20190127;
+							var patchVersion = 20190206;
 							if (currentPluginSettings.Version < patchVersion)
 							{
 								try
 								{
 									currentPluginSettings.Version = patchVersion;
-									Patch20190127(entMan, relMan, recMan);
+									Patch20190206(entMan, relMan, recMan);
 								}
 								catch (ValidationException ex)
 								{
@@ -167,15 +124,15 @@ namespace WebVella.Erp.Plugins.Project
 							}
 						}
 
-						//Patch 20190128
+						//Patch 20190207
 						{
-							var patchVersion = 20190128;
+							var patchVersion = 20190207;
 							if (currentPluginSettings.Version < patchVersion)
 							{
 								try
 								{
 									currentPluginSettings.Version = patchVersion;
-									Patch20190128(entMan, relMan, recMan);
+									Patch20190207(entMan, relMan, recMan);
 								}
 								catch (ValidationException ex)
 								{
@@ -190,15 +147,15 @@ namespace WebVella.Erp.Plugins.Project
 							}
 						}
 
-						//Patch 20190129
+						//Patch 20190208
 						{
-							var patchVersion = 20190129;
+							var patchVersion = 20190208;
 							if (currentPluginSettings.Version < patchVersion)
 							{
 								try
 								{
 									currentPluginSettings.Version = patchVersion;
-									Patch20190129(entMan, relMan, recMan);
+									Patch20190208(entMan, relMan, recMan);
 								}
 								catch (ValidationException ex)
 								{
@@ -212,37 +169,16 @@ namespace WebVella.Erp.Plugins.Project
 								}
 							}
 						}
-						//Patch 20190130
+
+						//Patch 20190222
 						{
-							var patchVersion = 20190130;
+							var patchVersion = 20190222;
 							if (currentPluginSettings.Version < patchVersion)
 							{
 								try
 								{
 									currentPluginSettings.Version = patchVersion;
-									Patch20190130(entMan, relMan, recMan);
-								}
-								catch (ValidationException ex)
-								{
-									var exception = ex;
-									throw ex;
-								}
-								catch (Exception ex)
-								{
-									var exception = ex;
-									throw ex;
-								}
-							}
-						}
-						//Patch 20190131
-						{
-							var patchVersion = 20190131;
-							if (currentPluginSettings.Version < patchVersion)
-							{
-								try
-								{
-									currentPluginSettings.Version = patchVersion;
-									Patch20190131(entMan, relMan, recMan);
+									Patch20190222(entMan, relMan, recMan);
 								}
 								catch (ValidationException ex)
 								{

@@ -45,8 +45,6 @@ namespace WebVella.Erp.Plugins.SDK.Pages.Application
 
 		private void InitPage()
 		{
-			Init();
-
 			#region << Init Roles >>
 			var roles = new SecurityManager().GetAllRoles().OrderBy(x => x.Name).ToList();
 			foreach (var role in roles)
@@ -61,7 +59,7 @@ namespace WebVella.Erp.Plugins.SDK.Pages.Application
 
 			#region << Actions >>
 			HeaderActions.AddRange( new List<string>() {
-				$"<button type='button' onclick='ErpEvent.DISPATCH(\"WebVella.Erp.Web.Components.PcForm\",\"submit\")' class='btn btn-green btn-sm'><span class='ti-save go-white'></span> Create App</button>",
+				$"<button type='submit' form='CreateRecord' onclick='return confirm('Are you sure ?')' class='btn btn-green btn-sm'><span class='fa fa-save go-white'></span> Create App</button>",
 				$"<a href='{ReturnUrl}' class='btn btn-white btn-sm'>Cancel</a>"
 			});
 
@@ -70,14 +68,27 @@ namespace WebVella.Erp.Plugins.SDK.Pages.Application
 
 		public IActionResult OnGet()
 		{
+			var initResult = Init();
+			if (initResult != null)
+				return initResult;
+
 			InitPage();
 
 			ErpRequestContext.PageContext = PageContext;
+            //Add Admin as the default roles
+            Access.Add(SystemIds.AdministratorRoleId.ToString());
+
+
+            BeforeRender();
 			return Page();
 		}
 		public IActionResult OnPost()
 		{
 			if (!ModelState.IsValid) throw new Exception("Antiforgery check failed.");
+
+			var initResult = Init();
+			if (initResult != null)
+				return initResult;
 
 			InitPage();
 
@@ -96,6 +107,8 @@ namespace WebVella.Erp.Plugins.SDK.Pages.Application
 
 
 			ErpRequestContext.PageContext = PageContext;
+
+			BeforeRender();
 			return Page();
 		}
 	}

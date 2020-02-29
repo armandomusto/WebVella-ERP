@@ -235,11 +235,18 @@ namespace WebVella.Erp.Database
 
         public void UpdateRecordField(string entityName, Field field)
         {
+			//don't update default value for auto number field
+			if (field.GetFieldType() == FieldType.AutoNumberField)
+				return;
+
             string tableName = RECORD_COLLECTION_PREFIX + entityName;
 
-            DbRepository.SetColumnNullable(RECORD_COLLECTION_PREFIX + entityName, field.Name, !field.Required);
+			bool overrideNulls = field.Required && field.GetDefaultValue() != null;
+			DbRepository.SetColumnDefaultValue(RECORD_COLLECTION_PREFIX + entityName, field.Name, field.GetFieldType(), field.GetDefaultValue(), overrideNulls );
 
-            if (field.Unique)
+			DbRepository.SetColumnNullable(RECORD_COLLECTION_PREFIX + entityName, field.Name, !field.Required);
+			
+			if (field.Unique)
                 DbRepository.CreateUniqueConstraint("idx_u_" + entityName + "_" + field.Name, tableName, new List<string> { field.Name });
             else
                 DbRepository.DropUniqueConstraint("idx_u_" + entityName + "_" + field.Name, tableName);
@@ -292,8 +299,17 @@ namespace WebVella.Erp.Database
             if (value == null)
                 return field.GetDefaultValue();
 
-            if (value is JToken)
-                value = ((JToken)value).ToObject<object>();
+			if (value is JToken)
+			{
+				//we convert JToken to string for specified types, because when date formated string 
+				//is saved in JToken value, it get converted to DateTime. It may happen with other specific texts also.
+				if( field is EmailField || field is FileField || field is ImageField ||
+					field is HtmlField || field is MultiLineTextField || field is PasswordField ||
+					field is PhoneField || field is SelectField || field is TextField || field is UrlField )
+					value = ((JToken)value).ToObject<string>();
+				else
+					value = ((JToken)value).ToObject<object>();
+			}
 
             if (field is AutoNumberField)
             {
@@ -321,7 +337,43 @@ namespace WebVella.Erp.Database
 
                 return Convert.ToDecimal(value);
             }
-			else if (field is DateField)
+			else if (field is DateField) 
+			{
+				if (value == null)
+					return null;
+
+				DateTime? date = null;
+				if (value is string)
+				{
+					if (string.IsNullOrWhiteSpace(value as string))
+						return null;
+					date = DateTime.Parse(value as string);
+					switch (date.Value.Kind)
+					{
+						case DateTimeKind.Utc:
+							return date.Value.ConvertToAppDate();
+						case DateTimeKind.Local:
+							return date.Value.ConvertToAppDate();
+						case DateTimeKind.Unspecified:
+							return date.Value;
+					}
+				}
+				else
+				{
+					date = value as DateTime?;
+					switch (date.Value.Kind)
+					{
+						case DateTimeKind.Utc:
+							return date.Value.ConvertToAppDate();
+						case DateTimeKind.Local:
+							return date.Value.ConvertToAppDate();
+						case DateTimeKind.Unspecified:
+							return date.Value;
+					}
+				}
+				return date;
+			}
+			else if (field is DateTimeField)
 			{
 				if (value == null)
 					return null;
@@ -376,35 +428,8 @@ namespace WebVella.Erp.Database
 				//	return new DateTime(date.Value.Year, date.Value.Month, date.Value.Day, 0, 0, 0, DateTimeKind.Utc);
 				return date;
 			}
-			else if (field is DateTimeField)
-            {
-               if (value == null)
-                    return null;
 
-				DateTime? date = null;
-				if (value is string)
-				{
-					if (string.IsNullOrWhiteSpace(value as string))
-						return null;
-
-					date = DateTime.Parse(value as string);
-					//date can be local, utc and unspecified
-					//if local convert to utc, unspecified is used as is
-					if (date.HasValue && date.Value.Kind == DateTimeKind.Local)
-						date = date.Value.ToUniversalTime();
-				}
-				else
-				{
-					date = value as DateTime?;
-					//date can be local, utc and unspecified
-					//if local convert to utc, unspecified is used as is
-					if (date.HasValue && date.Value.Kind == DateTimeKind.Local)
-						date = date.Value.ToUniversalTime();
-				}
-
-				return date;
-			}
-            else if (field is EmailField)
+			else if (field is EmailField)
                 return value as string;
             else if (field is FileField)
                 //TODO convert file path to url path

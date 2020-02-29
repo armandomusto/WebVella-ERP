@@ -9,6 +9,7 @@ using WebVella.Erp.Api.Models;
 using WebVella.Erp.Web;
 using WebVella.Erp.Web.Models;
 using WebVella.Erp.Web.Utils;
+using WebVella.TagHelpers.Models;
 
 namespace WebVella.Erp.Plugins.SDK.Pages.ErpDataSource
 {
@@ -16,7 +17,7 @@ namespace WebVella.Erp.Plugins.SDK.Pages.ErpDataSource
 	{
 		public ListModel([FromServices]ErpRequestContext reqCtx) { ErpRequestContext = reqCtx; }
 
-		public List<GridColumn> Columns { get; set; } = new List<GridColumn>();
+		public List<WvGridColumnMeta> Columns { get; set; } = new List<WvGridColumnMeta>();
 
 		public List<EntityRecord> Records { get; set; } = new List<EntityRecord>();
 
@@ -42,9 +43,11 @@ namespace WebVella.Erp.Plugins.SDK.Pages.ErpDataSource
 
 		public List<string> HeaderActions { get; private set; } = new List<string>();
 
-		public void OnGet()
+		public IActionResult OnGet()
 		{
-			Init();
+			var initResult = Init();
+			if (initResult != null)
+				return initResult;
 
 			DataSourceManager dsMan = new DataSourceManager();
 
@@ -64,7 +67,7 @@ namespace WebVella.Erp.Plugins.SDK.Pages.ErpDataSource
 				{
 					var record = new EntityRecord();
 					var recordId = ds.Id;
-					record["action"] = $"<a class='btn btn-sm btn-white' title='Data source details' href='/sdk/objects/data_source/r/{recordId}?returnUrl={ReturnUrlEncoded}'><span class='ti-eye'></span></a>";
+					record["action"] = $"<a class='btn btn-sm btn-outline-secondary' title='Data source details' href='/sdk/objects/data_source/r/{recordId}?returnUrl={ReturnUrlEncoded}'><span class='fa fa-eye'></span></a>";
 					record["icon"] = PageUtils.GetDataSourceIconBadge(DataSourceType.DATABASE);
 					record["name"] = ds.Name;
 					record["target"] = ds.EntityName;
@@ -78,7 +81,7 @@ namespace WebVella.Erp.Plugins.SDK.Pages.ErpDataSource
 				{
 					var record = new EntityRecord();
 					var recordId = ds.Id;
-					record["action"] = $"<a class='btn btn-sm btn-white' title='Data source details' href='/sdk/objects/data_source/r/{recordId}?returnUrl={ReturnUrlEncoded}'><span class='ti-eye'></span></a>";
+					record["action"] = $"<a class='btn btn-sm btn-outline-secondary' title='Data source details' href='/sdk/objects/data_source/r/{recordId}?returnUrl={ReturnUrlEncoded}'><span class='fa fa-eye'></span></a>";
 					record["icon"] = PageUtils.GetDataSourceIconBadge(DataSourceType.CODE);
 					record["name"] = ds.Name;
 					record["target"] = ds.GetType().FullName;
@@ -152,40 +155,40 @@ namespace WebVella.Erp.Plugins.SDK.Pages.ErpDataSource
 			#endregion
 
 			#region << Create Columns >>
-			Columns = new List<GridColumn>() {
-				new GridColumn(){
+			Columns = new List<WvGridColumnMeta>() {
+				new WvGridColumnMeta(){
 					Label = "",
 					Name = "action",
 					Width="1%"
 				},
-				new GridColumn(){
+				new WvGridColumnMeta(){
 					Label = "Icon",
 					Name = "icon",
 					Width="1%"
 				},
-				new GridColumn(){
+				new WvGridColumnMeta(){
 					Label = "Name",
 					Name = "name",
 					Width="220px",
 					Sortable = true
 				},
-				new GridColumn(){
+				new WvGridColumnMeta(){
 					Label = "Type",
 					Name = "type",
 					Width="120px",
 					Sortable = true
 				},
-				new GridColumn(){
+				new WvGridColumnMeta(){
 					Label = "target",
 					Name = "Target",
 					Sortable = true
 				},
-				new GridColumn(){
+				new WvGridColumnMeta(){
 					Label = "Returned Model",
 					Name = "model",
 					Width="220px"
 				},
-				new GridColumn(){
+				new WvGridColumnMeta(){
 					Label = "Params",
 					Name = "param_count",
 					Width="40px"
@@ -207,6 +210,9 @@ namespace WebVella.Erp.Plugins.SDK.Pages.ErpDataSource
 
 			
 			ErpRequestContext.PageContext = PageContext;
+
+			BeforeRender();
+			return Page();
 		}
 	}
 }

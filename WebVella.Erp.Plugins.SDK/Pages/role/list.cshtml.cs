@@ -10,6 +10,7 @@ using WebVella.Erp.Web;
 using WebVella.Erp.Web.Models;
 using WebVella.Erp.Web.Services;
 using WebVella.Erp.Web.Utils;
+using WebVella.TagHelpers.Models;
 
 namespace WebVella.Erp.Plugins.SDK.Pages.Role
 {
@@ -17,7 +18,7 @@ namespace WebVella.Erp.Plugins.SDK.Pages.Role
 	{
 		public ListModel([FromServices]ErpRequestContext reqCtx) { ErpRequestContext = reqCtx; }
 
-		public List<GridColumn> Columns { get; set; } = new List<GridColumn>();
+		public List<WvGridColumnMeta> Columns { get; set; } = new List<WvGridColumnMeta>();
 
 		public EntityRecordList Records { get; set; } = new EntityRecordList();
 
@@ -31,9 +32,11 @@ namespace WebVella.Erp.Plugins.SDK.Pages.Role
 
 		public QuerySortType SortOrder { get; set; } = QuerySortType.Ascending;
 
-		public void OnGet()
+		public IActionResult OnGet()
 		{
-			Init();
+			var initResult = Init();
+			if (initResult != null)
+				return initResult;
 
 			#region << InitPage >>
 			int pager = 0;
@@ -54,17 +57,17 @@ namespace WebVella.Erp.Plugins.SDK.Pages.Role
 
 			#region << Create Columns >>
 
-			Columns = new List<GridColumn>() {
-				new GridColumn(){
+			Columns = new List<WvGridColumnMeta>() {
+				new WvGridColumnMeta(){
 					Name = "action",
 					Width="1%"
 				},
-				new GridColumn(){
+				new WvGridColumnMeta(){
 					Label = "name",
 					Name = "name",
 					Width="200px"
 				},
-				new GridColumn(){
+				new WvGridColumnMeta(){
 					Label = "description",
 					Name = "description"
 				}
@@ -79,6 +82,8 @@ namespace WebVella.Erp.Plugins.SDK.Pages.Role
 			TotalCount = Records.TotalCount;
 			#endregion
 
+			BeforeRender();
+			return Page();
 		}
 	}
 }

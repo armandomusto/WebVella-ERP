@@ -1,14 +1,13 @@
-﻿using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Mvc;
 using System;
 using WebVella.Erp.Diagnostics;
+using WebVella.Erp.Exceptions;
 using WebVella.Erp.Hooks;
 using WebVella.Erp.Web.Hooks;
 using WebVella.Erp.Web.Models;
 
 namespace WebVella.Erp.Web.Pages.Application
 {
-	[Authorize]
 	public class ApplicationHomePageModel : BaseErpPageModel
 	{
 		public ApplicationHomePageModel([FromServices]ErpRequestContext reqCtx) { ErpRequestContext = reqCtx; }
@@ -17,7 +16,8 @@ namespace WebVella.Erp.Web.Pages.Application
 		{
 			try
 			{
-				Init();
+				var initResult = Init();
+				if (initResult != null) return initResult;
 				if (ErpRequestContext.Page == null) return NotFound();
 
 				var globalHookInstances = HookManager.GetHookedInstances<IPageHook>(HookKey);
@@ -39,6 +39,7 @@ namespace WebVella.Erp.Web.Pages.Application
 			catch (Exception ex)
 			{
 				new Log().Create(LogType.Error, "ApplicationHomePageModel Error on GET", ex);
+				Validation.Message = ex.Message;
 				BeforeRender();
 				return Page();
 			}
@@ -49,8 +50,8 @@ namespace WebVella.Erp.Web.Pages.Application
 			try
 			{
 				if (!ModelState.IsValid) throw new Exception("Antiforgery check failed.");
-				Init();
-
+				var initResult = Init();
+				if (initResult != null) return initResult;
 				if (ErpRequestContext.Page == null) return NotFound();
 
 				var globalHookInstances = HookManager.GetHookedInstances<IPageHook>(HookKey);
@@ -69,9 +70,17 @@ namespace WebVella.Erp.Web.Pages.Application
 				BeforeRender();
 				return Page();
 			}
+			catch (ValidationException valEx)
+			{
+				Validation.Message = valEx.Message;
+				Validation.Errors.AddRange(valEx.Errors);
+				BeforeRender();
+				return Page();
+			}
 			catch (Exception ex)
 			{
 				new Log().Create(LogType.Error, "ApplicationHomePageModel Error on POST", ex);
+				Validation.Message = ex.Message;
 				BeforeRender();
 				return Page();
 			}
@@ -79,8 +88,3 @@ namespace WebVella.Erp.Web.Pages.Application
 
 	}
 }
-
-/*
- * system actions: none
- * custom actions: on post based on handler name
- */

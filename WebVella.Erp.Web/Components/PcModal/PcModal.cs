@@ -8,6 +8,7 @@ using WebVella.Erp.Exceptions;
 using WebVella.Erp.Web.Models;
 using WebVella.Erp.Web.Services;
 using WebVella.Erp.Web.Utils;
+using WebVella.TagHelpers.Models;
 
 namespace WebVella.Erp.Web.Components
 {
@@ -23,14 +24,20 @@ namespace WebVella.Erp.Web.Components
 
 		public class PcModalOptions
 		{
+			[JsonProperty(PropertyName = "is_visible")]
+			public string IsVisible { get; set; } = "";
+
+            [JsonProperty(PropertyName = "id")]
+            public string Id { get; set; } = "";
+
 			[JsonProperty(PropertyName = "title")]
 			public string Title { get; set; } = "";
 
 			[JsonProperty(PropertyName = "position")]
-			public ModalPosition Position { get; set; } = ModalPosition.Top;
+			public WvModalPosition Position { get; set; } = WvModalPosition.Top;
 
 			[JsonProperty(PropertyName = "size")]
-			public ModalSize Size { get; set; } = ModalSize.Normal;
+			public WvModalSize Size { get; set; } = WvModalSize.Normal;
 
 			[JsonProperty(PropertyName = "backdrop")]
 			public string Backdrop { get; set; } = "true";
@@ -45,7 +52,7 @@ namespace WebVella.Erp.Web.Components
 				#region << Init >>
 				if (context.Node == null)
 				{
-					return await Task.FromResult<IViewComponentResult>(Content("Error: The node Id is required to be set as query param 'nid', when requesting this component"));
+					return await Task.FromResult<IViewComponentResult>(Content("Error: The node Id is required to be set as query parameter 'nid', when requesting this component"));
 				}
 
 				var pageFromModel = context.DataModel.GetProperty("Page");
@@ -60,7 +67,7 @@ namespace WebVella.Erp.Web.Components
 
 				if (currentPage == null)
 				{
-					return await Task.FromResult<IViewComponentResult>(Content("Error: The page Id is required to be set as query param 'pid', when requesting this component"));
+					return await Task.FromResult<IViewComponentResult>(Content("Error: The page Id is required to be set as query parameter 'pid', when requesting this component"));
 				}
 
 				var instanceOptions = new PcModalOptions();
@@ -72,6 +79,8 @@ namespace WebVella.Erp.Web.Components
 				var componentMeta = new PageComponentLibraryService().GetComponentMeta(context.Node.ComponentName);
 				#endregion
 
+				if(String.IsNullOrWhiteSpace(instanceOptions.Id))
+					instanceOptions.Id = "wv-" + context.Node.Id;
 
 				ViewBag.Options = instanceOptions;
 				ViewBag.Node = context.Node;
@@ -81,12 +90,25 @@ namespace WebVella.Erp.Web.Components
 				ViewBag.ComponentContext = context;
 				ViewBag.GeneralHelpSection = HelpJsApiGeneralSection;
 
-				if (context.Mode == ComponentMode.Display)
-				{
-					
-				}
+                if (context.Mode != ComponentMode.Options && context.Mode != ComponentMode.Help)
+                {
+                    var isVisible = true;
+                    var isVisibleDS = context.DataModel.GetPropertyValueByDataSource(instanceOptions.IsVisible);
+                    if (isVisibleDS is string && !String.IsNullOrWhiteSpace(isVisibleDS.ToString()))
+                    {
+                        if (Boolean.TryParse(isVisibleDS.ToString(), out bool outBool))
+                        {
+                            isVisible = outBool;
+                        }
+                    }
+                    else if (isVisibleDS is Boolean)
+                    {
+                        isVisible = (bool)isVisibleDS;
+                    }
+                    ViewBag.IsVisible = isVisible;
+                }
 
-				switch (context.Mode)
+                switch (context.Mode)
 				{
 					case ComponentMode.Display:
 						ViewBag.ProcessedTitle = context.DataModel.GetPropertyValueByDataSource(instanceOptions.Title);
@@ -94,8 +116,8 @@ namespace WebVella.Erp.Web.Components
 					case ComponentMode.Design:
 						return await Task.FromResult<IViewComponentResult>(View("Design"));
 					case ComponentMode.Options:
-						ViewBag.PositionOptions = ModelExtensions.GetEnumAsSelectOptions<ModalPosition>();
-						ViewBag.SizeOptions = ModelExtensions.GetEnumAsSelectOptions<ModalSize>();
+						ViewBag.PositionOptions = WebVella.TagHelpers.Utilities.ModelExtensions.GetEnumAsSelectOptions<WvModalPosition>();
+						ViewBag.SizeOptions = WebVella.TagHelpers.Utilities.ModelExtensions.GetEnumAsSelectOptions<WvModalSize>();
 						return await Task.FromResult<IViewComponentResult>(View("Options"));
 					case ComponentMode.Help:
 						return await Task.FromResult<IViewComponentResult>(View("Help"));

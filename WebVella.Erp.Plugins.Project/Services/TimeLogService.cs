@@ -40,7 +40,7 @@ namespace WebVella.Erp.Plugins.Project.Services
 				record["id"] = id;
 				record["created_by"] = createdBy;
 				record["created_on"] = createdOn;
-				record["logged_on"] = loggedOn;
+				record["logged_on"] = loggedOn.ConvertAppDateToUtc();
 				record["body"] = body;
 				record["minutes"] = minutes;
 				record["is_billable"] = isBillable;
@@ -85,7 +85,7 @@ namespace WebVella.Erp.Plugins.Project.Services
 		public EntityRecordList GetTimelogsForPeriod(Guid? projectId, Guid? userId, DateTime startDate, DateTime endDate)
 		{
 			var projectRecord = new EntityRecord();
-			var eqlCommand = "SELECT * from timelog WHERE logged_on > @startDate AND logged_on < @endDate ";
+			var eqlCommand = "SELECT * from timelog WHERE logged_on >= @startDate AND logged_on < @endDate ";
 			var eqlParams = new List<EqlParameter>() { new EqlParameter("startDate", startDate), new EqlParameter("endDate", endDate) };
 
 			if (projectId != null)
@@ -157,7 +157,12 @@ namespace WebVella.Erp.Plugins.Project.Services
 					try
 					{
 						connection.BeginTransaction();
-						new TimeLogService().Create(null, currentUser.Id, DateTime.Now, loggedOn, minutes, isBillable, body, scope, relatedRecords);
+						new TaskService().StopTaskTimelog(taskId);
+						if (postForm["minutes"].ToString() != "0")
+						{
+							//Zero minutes are not logged
+							new TimeLogService().Create(null, currentUser.Id, DateTime.Now, loggedOn, minutes, isBillable, body, scope, relatedRecords);
+						}
 						connection.CommitTransaction();
 						return new RedirectResult("/projects/track-time/track-time/a/track-time");
 					}

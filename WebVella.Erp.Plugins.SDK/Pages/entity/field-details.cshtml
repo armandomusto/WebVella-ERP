@@ -1,6 +1,7 @@
 ﻿@page "/sdk/objects/entity/r/{ParentRecordId}/rl/fields/r/{RecordId}/{PageName?}"
 
 @model WebVella.Erp.Plugins.SDK.Pages.ErpEntity.FieldDetailsModel
+@using WebVella.Erp.Web.Utils;
 @{
 	Layout = "~/Pages/_AppMaster.cshtml";
 	ViewData["Title"] = "Field details";
@@ -8,7 +9,7 @@
 
 
 <wv-page-header color="@Model.ErpEntity.Color" area-label="Entities" title="@Model.ErpEntity.Name" subtitle="Field Details"
-				icon-class="ti-plus" return-url="@Model.ReturnUrl">
+				icon-class="fa fa-database" return-url="@Model.ReturnUrl">
 	<wv-page-header-actions>
 		@foreach (var action in Model.HeaderActions)
 		{
@@ -30,7 +31,7 @@
 	</wv-column>
 </wv-row>
 
-<wv-validation validation="Model.Validation" show-errors="false"></wv-validation>
+<wv-validation errors="@Model.Validation.ToErrorList()" message="@Model.Validation.Message"></wv-validation>
 
 <wv-form label-mode="Stacked" mode="Display">
 	<wv-section title="General">
@@ -44,6 +45,7 @@
 		</wv-row>
 		<wv-row>
 			<wv-column span="6">
+				<wv-field-guid value="Model.Field.Id" label-text="Id"></wv-field-guid>
 			</wv-column>
 			<wv-column span="6">
 				<wv-field-checkbox value="Model.Field.Required" label-text="Required" text-true="required field" text-false="not required field"></wv-field-checkbox>
@@ -414,7 +416,7 @@
 		</wv-row>
 		<wv-row>
 			<wv-column span="12">
-				<wv-field-checkbox-grid label-text="Field Permissions" columns="Model.PermissionOptions" rows="Model.RoleOptions" value="@Model.FieldPermissions" text-true="granted" text-false="not granted"></wv-field-checkbox-grid>
+				<wv-field-checkbox-grid label-text="Field Permissions" columns="Model.PermissionOptions.ToWvSelectOption()" rows="Model.RoleOptions.ToWvSelectOption()" value="@Model.FieldPermissions" text-true="granted" text-false="not granted"></wv-field-checkbox-grid>
 			</wv-column>
 		</wv-row>
 	</wv-section>

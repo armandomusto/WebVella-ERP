@@ -9,6 +9,7 @@ using WebVella.Erp.Plugins.SDK.Utils;
 using WebVella.Erp.Web;
 using WebVella.Erp.Web.Models;
 using WebVella.Erp.Web.Utils;
+using WebVella.TagHelpers.Models;
 
 namespace WebVella.Erp.Plugins.SDK.Pages.ErpEntity
 {
@@ -18,7 +19,7 @@ namespace WebVella.Erp.Plugins.SDK.Pages.ErpEntity
 
 		public Entity ErpEntity { get; set; }
 
-		public List<GridColumn> Columns { get; set; } = new List<GridColumn>();
+		public List<WvGridColumnMeta> Columns { get; set; } = new List<WvGridColumnMeta>();
 
 		public List<EntityRecord> Records { get; set; } = new List<EntityRecord>();
 
@@ -40,7 +41,9 @@ namespace WebVella.Erp.Plugins.SDK.Pages.ErpEntity
 
 		public IActionResult OnGet()
 		{
-			Init();
+			var initResult = Init();
+			if (initResult != null)
+				return initResult;
 
 			var entMan = new EntityManager();
 			var relMan = new EntityRelationManager();
@@ -93,25 +96,25 @@ namespace WebVella.Erp.Plugins.SDK.Pages.ErpEntity
 
 			#region << Create Columns >>
 
-			Columns = new List<GridColumn>() {
-				new GridColumn(){
+			Columns = new List<WvGridColumnMeta>() {
+				new WvGridColumnMeta(){
 					Name = "action",
 					Width="1%"
 				},
-				new GridColumn(){
+				new WvGridColumnMeta(){
 					Label = "Name",
 					Name = "name",
 					Sortable = true,
 					Searchable = true
 				},
-				new GridColumn(){
+				new WvGridColumnMeta(){
 					Label = "Origin",
 					Name = "origin",
 					Sortable = false,
 					Searchable = false,
 					Width="25%"
 				},
-				new GridColumn(){
+				new WvGridColumnMeta(){
 					Label = "Target",
 					Name = "target",
 					Sortable = false,
@@ -168,7 +171,7 @@ namespace WebVella.Erp.Plugins.SDK.Pages.ErpEntity
 				var targetColumnText = $"<div><span class='go-gray'>Entity: </span> {relation.TargetEntityName}</div><div><span class='go-gray'>Field: </span> {relation.TargetFieldName}</div>";
 
 				var record = new EntityRecord();
-				record["action"] = $"<a class='btn btn-sm btn-white' title='view relation details' href='/sdk/objects/entity/r/{ErpEntity.Id}/rl/relations/r/{relation.Id}?returnUrl={ReturnUrlEncoded}'><span class='ti-eye'></span></a>";
+				record["action"] = $"<a class='btn btn-sm btn-outline-secondary' title='view relation details' href='/sdk/objects/entity/r/{ErpEntity.Id}/rl/relations/r/{relation.Id}?returnUrl={ReturnUrlEncoded}'><span class='fa fa-eye'></span></a>";
 				record["name"] = nameColumnText;
 				record["origin"] = originColumnText;
 				record["target"] = targetColumnText;
@@ -180,6 +183,7 @@ namespace WebVella.Erp.Plugins.SDK.Pages.ErpEntity
 
 			ErpRequestContext.PageContext = PageContext;
 
+			BeforeRender();
 			return Page();
 		}
 	}

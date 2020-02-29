@@ -1,6 +1,4 @@
-﻿using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.RazorPages;
+﻿using Microsoft.AspNetCore.Mvc;
 using System;
 using WebVella.Erp.Api;
 using WebVella.Erp.Diagnostics;
@@ -11,7 +9,6 @@ using WebVella.Erp.Web.Models;
 
 namespace WebVella.Erp.Web.Pages.Application
 {
-	[Authorize]
 	public class RecordDetailsPageModel : BaseErpPageModel
 	{
 		public RecordDetailsPageModel([FromServices]ErpRequestContext reqCtx) { ErpRequestContext = reqCtx; }
@@ -21,7 +18,8 @@ namespace WebVella.Erp.Web.Pages.Application
 		{
 			try
 			{
-				Init();
+				var initResult = Init();
+				if (initResult != null) return initResult;
 				if (ErpRequestContext.Page == null) return NotFound();
 				if (!RecordsExists()) return NotFound();
 				if (PageName != ErpRequestContext.Page.Name)
@@ -53,7 +51,8 @@ namespace WebVella.Erp.Web.Pages.Application
 			try
 			{
 				if (!ModelState.IsValid) throw new Exception("Antiforgery check failed.");
-				Init();
+				var initResult = Init();
+				if (initResult != null) return initResult;
 
 				if (ErpRequestContext.Page == null) return NotFound();
 				if (!RecordsExists()) return NotFound();
@@ -93,9 +92,17 @@ namespace WebVella.Erp.Web.Pages.Application
 				BeforeRender();
 				return Page();
 			}
+			catch (ValidationException valEx)
+			{
+				Validation.Message = valEx.Message;
+				Validation.Errors.AddRange(valEx.Errors);
+				BeforeRender();
+				return Page();
+			}
 			catch (Exception ex)
 			{
 				new Log().Create(LogType.Error, "RecordDetailsPageModel Error on POST", ex);
+				Validation.Message = ex.Message;
 				BeforeRender();
 				return Page();
 			}

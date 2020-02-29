@@ -25,7 +25,15 @@ namespace WebVella.Erp.Web.Components
 			var appContext = ErpAppContext.Current;
 			var currentApp = ErpRequestContext.App;
 			ViewBag.CurrentApp = currentApp;
-			ViewBag.Theme = appContext.Theme;
+            ViewBag.CurrentArea = ErpRequestContext.SitemapArea;
+            ViewBag.CurrentNode = ErpRequestContext.SitemapNode;
+            var theme = appContext.Theme;
+            ViewBag.Theme = theme;
+            ViewBag.BrandLogo = theme.BrandLogo;
+            if (!String.IsNullOrWhiteSpace(ErpSettings.NavLogoUrl)) {
+                ViewBag.BrandLogo = ErpSettings.NavLogoUrl;
+            }
+
 			ViewBag.AppShortName = "";
 			ViewBag.AppDefaultLink = "/";
 			if (currentApp != null) {
@@ -79,6 +87,8 @@ namespace WebVella.Erp.Web.Components
 			#endregion
 
 			ViewBag.PageModel = pageModel;
+
+			ViewBag.DefaultAppName = String.IsNullOrWhiteSpace(ErpSettings.AppName) ? "WebVella" : ErpSettings.AppName;
 
 			return await Task.FromResult<IViewComponentResult>(View("Nav.Default"));
         }

@@ -19,6 +19,9 @@ namespace WebVella.Erp.Plugins.SDK.Pages.ErpEntity
 		public CreateModel([FromServices]ErpRequestContext reqCtx) { ErpRequestContext = reqCtx; }
 
 		[BindProperty]
+		public Guid? Id { get; set; } = null;
+
+		[BindProperty]
 		public string Name { get; set; } = "";
 
 		[BindProperty]
@@ -52,8 +55,6 @@ namespace WebVella.Erp.Plugins.SDK.Pages.ErpEntity
 
 		public void InitPage()
 		{
-			Init();
-
 			if (String.IsNullOrWhiteSpace(ReturnUrl))
 				ReturnUrl = "/sdk/objects/entity/l/list";
 
@@ -87,7 +88,7 @@ namespace WebVella.Erp.Plugins.SDK.Pages.ErpEntity
 			#region << Actions >>
 			HeaderActions.AddRange(new List<string>() {
 
-				PageUtils.GetActionTemplate(PageUtilsActionType.SubmitForm, label: "Create Entity",formId:"CreateRecord", btnClass:"btn btn-green btn-sm", iconClass:"ti-plus"),
+				PageUtils.GetActionTemplate(PageUtilsActionType.SubmitForm, label: "Create Entity",formId:"CreateRecord", btnClass:"btn btn-green btn-sm", iconClass:"fa fa-plus"),
 				PageUtils.GetActionTemplate(PageUtilsActionType.Cancel, returnUrl: ReturnUrl)
 			});
 
@@ -99,9 +100,15 @@ namespace WebVella.Erp.Plugins.SDK.Pages.ErpEntity
 
 		public IActionResult OnGet()
 		{
+			var initResult = Init();
+			if (initResult != null)
+				return initResult;
+
 			InitPage();
 
 			ErpRequestContext.PageContext = PageContext;
+
+			BeforeRender();
 			return Page();
 		}
 
@@ -109,14 +116,22 @@ namespace WebVella.Erp.Plugins.SDK.Pages.ErpEntity
 		{
 			if (!ModelState.IsValid) throw new Exception("Antiforgery check failed.");
 
+			var initResult = Init();
+			if (initResult != null)
+				return initResult;
+
 			InitPage();
 
 			var entMan = new EntityManager();
 			try
 			{
+				var entityId = Guid.NewGuid();
+				if (Id != null)
+					entityId = Id.Value;
+
 				var input = new InputEntity()
 				{
-					Id = Guid.NewGuid(),
+					Id = entityId,
 					Name = Name,
 					Label = Label,
 					LabelPlural = LabelPlural,
@@ -182,6 +197,8 @@ namespace WebVella.Erp.Plugins.SDK.Pages.ErpEntity
 			}
 
 			ErpRequestContext.PageContext = PageContext;
+
+			BeforeRender();
 			return Page();
 		}
 	}

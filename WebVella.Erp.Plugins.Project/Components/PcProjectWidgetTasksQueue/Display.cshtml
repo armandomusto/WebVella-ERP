@@ -1,24 +1,27 @@
 ﻿@addTagHelper *, WebVella.Erp.Plugins.Core
 @addTagHelper *, WebVella.Erp.Web
+@addTagHelper *, WebVella.TagHelpers
+@using WebVella.Erp.Web.Utils;
 @using WebVella.Erp.Api.Models;
 @using WebVella.Erp.Web.Models;
 @using WebVella.Erp.Plugins.Project.Components;
 @using WebVella.Erp.Plugins.Project.Model;
+@using WebVella.TagHelpers.Models;
 @{
 	var options = (PcProjectWidgetTasksQueue.PcProjectWidgetTasksQueueOptions)ViewBag.Options;
 	var records = (List<EntityRecord>)ViewBag.Records;
-	var gridColumn = new List<GridColumn>() {
-		new GridColumn(){
+	var gridColumn = new List<WvGridColumnMeta>() {
+		new WvGridColumnMeta(){
 			Name = "name",
 			Width = "",
 			Label = "name"
 		},
-		new GridColumn(){
+		new WvGridColumnMeta(){
 			Name = "user",
 			Width = "200px",
 			Label = "user"
 		},
-		new GridColumn(){
+		new WvGridColumnMeta(){
 			Name = "date",
 			Width = "120px",
 			Label = "date"
@@ -38,10 +41,10 @@
 
 		@switch (options.Type)
 		{
-			case TasksDueType.TargetDateDueToday:
+			case TasksDueType.EndTimeDueToday:
 				dateClass = "go-orange";
 				break;
-			case TasksDueType.TargetDateOverdue:
+			case TasksDueType.EndTimeOverdue:
 				dateClass = "go-red";
 				break;
 			default:
@@ -58,13 +61,13 @@
 else { 
 	@switch (options.Type)
 	{
-		case TasksDueType.TargetDateDueToday:
+		case TasksDueType.EndTimeDueToday:
 			<div class="alert alert-info p-2 m-0">No tasks due today</div>
 			break;
-		case TasksDueType.TargetDateOverdue:
+		case TasksDueType.EndTimeOverdue:
 			<div class="alert alert-info p-2 m-0">No overdue tasks</div>
 			break;
-		case TasksDueType.TargetDateNotDue:
+		case TasksDueType.EndTimeNotDue:
 			<div class="alert alert-info p-2 m-0">No upcoming tasks</div>
 			break;
 		default:

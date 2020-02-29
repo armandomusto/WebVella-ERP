@@ -90,7 +90,7 @@ namespace WebVella.Erp.Plugins.Project.Components
 					{
 						var ownerId = (Guid?)task["owner_id"];
 						var taskStatus = (Guid)task["status_id"];
-						var targetDate = (DateTime?)task["target_date"];
+						var endTime = (DateTime?)task["end_time"];
 
 
 						var userRecord = new EntityRecord();
@@ -104,11 +104,11 @@ namespace WebVella.Erp.Plugins.Project.Components
 
 						var currentRecord = userDict[ownerId != null ? ownerId.Value : Guid.Empty];
 
-						if (targetDate != null)
+						if (endTime != null)
 						{
-							if (targetDate.Value.ConvertToAppDate().Date < DateTime.Now.Date)
+							if (endTime.Value.AddDays(1) < DateTime.Now.Date)
 								currentRecord["overdue"] = ((int)currentRecord["overdue"]) + 1;
-							else if (targetDate.Value.ConvertToAppDate().Date == DateTime.Now.Date)
+							else if (endTime.Value >= DateTime.Now.Date && endTime.Value < DateTime.Now.Date.AddDays(1))
 								currentRecord["today"] = ((int)currentRecord["today"]) + 1;
 							else
 								currentRecord["other"] = ((int)currentRecord["other"]) + 1;
@@ -126,7 +126,7 @@ namespace WebVella.Erp.Plugins.Project.Components
 						{
 							var statRecord = userDict[key];
 							var row = new EntityRecord();
-							var imagePath = "/assets/avatar.png";
+							var imagePath = "/_content/WebVella.Erp.Web/assets/avatar.png";
 
 							row["user"] = $"<img src=\"{imagePath}\" class=\"rounded-circle\" width=\"24\"> No owner";
 							row["overdue"] = statRecord["overdue"];
@@ -139,7 +139,7 @@ namespace WebVella.Erp.Plugins.Project.Components
 							var user = users.First(x => (Guid)x["id"] == key);
 							var statRecord = userDict[key];
 							var row = new EntityRecord();
-							var imagePath = "/assets/avatar.png";
+							var imagePath = "/_content/WebVella.Erp.Web/assets/avatar.png";
 							if (user["image"] != null && (string)user["image"] != "")
 								imagePath = "/fs" + (string)user["image"];
 

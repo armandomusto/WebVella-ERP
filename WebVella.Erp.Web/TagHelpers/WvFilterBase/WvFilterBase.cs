@@ -8,12 +8,16 @@ using WebVella.Erp.Api.Models;
 using WebVella.Erp.Web.Models;
 using WebVella.Erp.Web.Services;
 using WebVella.Erp.Web.Utils;
+using WebVella.TagHelpers.Models;
 using Yahoo.Yui.Compressor;
 
 namespace WebVella.Erp.Web.TagHelpers
 {
 	public abstract class WvFilterBase : TagHelper
 	{
+		[HtmlAttributeName("is-visible")]
+		public bool isVisible { get; set; } = true;
+
 		[HtmlAttributeName("init-errors")]
 		public List<string> InitErrors { get; set; } = new List<string>();
 
@@ -210,7 +214,7 @@ namespace WebVella.Erp.Web.TagHelpers
 
 			#region << Render >>
 			output.TagName = "div";
-			output.AddCssClass("erp-field form-group erp-filter");
+			output.AddCssClass("wv-field form-group erp-filter");
 			output.Attributes.Add("id", $"erp-filter-{FilterId}");
 			output.Attributes.Add("data-name", $"{Name}");
 			output.Attributes.Add("data-prefix", $"{Prefix}");

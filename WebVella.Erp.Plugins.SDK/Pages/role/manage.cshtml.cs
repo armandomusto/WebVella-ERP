@@ -24,8 +24,6 @@ namespace WebVella.Erp.Plugins.SDK.Pages.Role
 
 		private void InitPage()
 		{
-			Init();
-
 			if (RecordId != null)
 			{
 				var resultRecords = new EqlCommand($"select * from role where id = '{RecordId}'").Execute();
@@ -37,6 +35,10 @@ namespace WebVella.Erp.Plugins.SDK.Pages.Role
 
 		public IActionResult OnGet()
 		{
+			var initResult = Init();
+			if (initResult != null)
+				return initResult;
+
 			InitPage();
 
 			if (RoleRecord == null)
@@ -44,13 +46,18 @@ namespace WebVella.Erp.Plugins.SDK.Pages.Role
 
 			Name = (string)RoleRecord["name"];
 			Description = (string)RoleRecord["description"];
-
+			BeforeRender();
 			return Page();
 		}
 
 		public IActionResult OnPost()
 		{
 			if (!ModelState.IsValid) throw new Exception("Antiforgery check failed.");
+			
+			var initResult = Init();
+			if (initResult != null)
+				return initResult;
+
 			InitPage();
 			if (RoleRecord == null) return NotFound();
 
@@ -61,13 +68,14 @@ namespace WebVella.Erp.Plugins.SDK.Pages.Role
 				role.Name = Name;
 				role.Description = Description;
 				new SecurityManager().SaveRole(role);
-
+				BeforeRender();
 				return Redirect(ReturnUrl);
 			}
 			catch (ValidationException ex)
 			{
 				Validation.Message = ex.Message;
 				Validation.Errors = ex.Errors;
+				BeforeRender();
 				return Page();
 			}
 		}

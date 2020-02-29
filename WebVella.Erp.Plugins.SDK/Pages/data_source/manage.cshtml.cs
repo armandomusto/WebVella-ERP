@@ -41,8 +41,6 @@ namespace WebVella.Erp.Plugins.SDK.Pages.ErpDataSource
 
 		public void InitPage()
 		{
-			Init();
-
 			if (String.IsNullOrWhiteSpace(ReturnUrl))
 				ReturnUrl = "/sdk/objects/data_source/l/list";
 
@@ -52,7 +50,7 @@ namespace WebVella.Erp.Plugins.SDK.Pages.ErpDataSource
 
 			HeaderActions.AddRange(new List<string>() {
 
-				PageUtils.GetActionTemplate(PageUtilsActionType.SubmitForm, label: "Save",formId:"UpdateRecord", btnClass:"btn btn-primary btn-sm", iconClass:"ti-save"),
+				PageUtils.GetActionTemplate(PageUtilsActionType.SubmitForm, label: "Save",formId:"UpdateRecord", btnClass:"btn btn-primary btn-sm", iconClass:"fa fa-save"),
 				PageUtils.GetActionTemplate(PageUtilsActionType.Cancel, returnUrl: ReturnUrl)
 			});
 
@@ -61,6 +59,10 @@ namespace WebVella.Erp.Plugins.SDK.Pages.ErpDataSource
 
 		public IActionResult OnGet()
 		{
+			var initResult = Init();
+			if (initResult != null)
+				return initResult;
+
 			InitPage();
 
 			if (DataSourceObject == null)
@@ -81,12 +83,18 @@ namespace WebVella.Erp.Plugins.SDK.Pages.ErpDataSource
 			}
 
 			ErpRequestContext.PageContext = PageContext;
+
+			BeforeRender();
 			return Page();
 		}
 
 		public IActionResult OnPost()
 		{
 			if (!ModelState.IsValid) throw new Exception("Antiforgery check failed.");
+
+			var initResult = Init();
+			if (initResult != null)
+				return initResult;
 
 			InitPage();
 
@@ -121,6 +129,8 @@ namespace WebVella.Erp.Plugins.SDK.Pages.ErpDataSource
 			}
 
 			ErpRequestContext.PageContext = PageContext;
+
+			BeforeRender();
 			return Page();
 		}
 

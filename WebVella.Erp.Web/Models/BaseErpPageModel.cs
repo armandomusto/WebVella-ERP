@@ -1,8 +1,9 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Linq;
 using System.Web;
 using WebVella.Erp.Api.Models;
@@ -12,6 +13,7 @@ using WebVella.Erp.Web.Utils;
 
 namespace WebVella.Erp.Web.Models
 {
+	[Authorize(AuthenticationSchemes = CookieAuthenticationDefaults.AuthenticationScheme)]
 	public class BaseErpPageModel : PageModel
 	{
 		private ErpUser currentUser = null;
@@ -83,7 +85,7 @@ namespace WebVella.Erp.Web.Models
 			}
 		}
 
-		public void Init(string appName = "", string areaName = "", string nodeName = "",
+		public IActionResult Init(string appName = "", string areaName = "", string nodeName = "",
 						string pageName = "", Guid? recordId = null, Guid? relationId = null, Guid? parentRecordId = null)
 		{
 			//Stopwatch sw = new Stopwatch();
@@ -162,13 +164,12 @@ namespace WebVella.Erp.Web.Models
 			if (ErpRequestContext.App != null)
 			{
 				var sitemap = ErpRequestContext.App.Sitemap;
-				var appPages = new PageService().GetAppPages(ErpRequestContext.App.Id);
+				var appPages = new PageService().GetAppControlledPages(ErpRequestContext.App.Id);
 				//Calculate node Urls
 				foreach (var area in sitemap.Areas)
 				{
-					if (area.Nodes.Count > 0)
+					foreach (var currentNode in area.Nodes)
 					{
-						var currentNode = area.Nodes[0];
 						switch (currentNode.Type)
 						{
 							case SitemapNodeType.ApplicationPage:
@@ -189,7 +190,7 @@ namespace WebVella.Erp.Web.Models
 								}
 								break;
 							case SitemapNodeType.EntityList:
-								var firstListPage = appPages.FindAll(x => x.Type == PageType.RecordList).OrderBy(x => x.Weight).FirstOrDefault();
+								var firstListPage = appPages.FindAll(x => x.Type == PageType.RecordList && x.EntityId == currentNode.EntityId).OrderBy(x => x.Weight).FirstOrDefault();
 								if (firstListPage == null)
 									currentNode.Url = $"/{ErpRequestContext.App.Name}/{area.Name}/{currentNode.Name}/l/";
 								else
@@ -215,19 +216,29 @@ namespace WebVella.Erp.Web.Models
 					{
 						var areaLink = $"<a href=\"javascript: void(0)\" title=\"{area.Label}\" data-navclick-handler>";
 						areaLink += $"<span class=\"menu-label\">{area.Label}</span>";
-						areaLink += $"<span class=\"menu-nav-icon ti-angle-down nav-caret\"></span>";
+						areaLink += $"<span class=\"menu-nav-icon fa fa-angle-down nav-caret\"></span>";
 						areaLink += $"</a>";
 						areaMenuItem = new MenuItem()
 						{
+							Id = area.Id,
 							Content = areaLink
 						};
 
 						foreach (var node in area.Nodes)
 						{
-							var nodeLink = $"<a class=\"dropdown-item\" href=\"{node.Url}\" title=\"{node.Label}\"><span class=\"{node.IconClass} icon\"></span> {node.Label}</a>";
+							var nodeLink = "";
+							if(!String.IsNullOrWhiteSpace(node.Url)){
+								nodeLink = $"<a class=\"dropdown-item\" href=\"{node.Url}\" title=\"{node.Label}\"><span class=\"{node.IconClass} icon fa-fw\"></span>{node.Label}</a>";
+							}
+							else{
+								nodeLink = $"<a class=\"dropdown-item\" href=\"#\" onclick=\"return false\" title=\"{node.Label}\"><span class=\"{node.IconClass} icon fa-fw\"></span>{node.Label}</a>";
+							}
 							areaMenuItem.Nodes.Add(new MenuItem()
 							{
-								Content = nodeLink
+								Content = nodeLink,
+								Id = node.Id,
+								ParentId = node.ParentId,
+								SortOrder = node.Weight
 							});
 						}
 					}
@@ -238,9 +249,35 @@ namespace WebVella.Erp.Web.Models
 						areaLink += $"</a>";
 						areaMenuItem = new MenuItem()
 						{
-							Content = areaLink
+							Content = areaLink,
+							Id = area.Nodes[0].Id,
+							ParentId = area.Nodes[0].ParentId,
+							SortOrder = area.Nodes[0].Weight
 						};
 					}
+
+					if (ErpRequestContext.SitemapArea == null && ErpRequestContext.Page != null && ErpRequestContext.Page.Type != PageType.Application)
+						return new NotFoundResult();
+
+					if (ErpRequestContext.SitemapArea != null && area.Id == ErpRequestContext.SitemapArea.Id)
+						areaMenuItem.Class = "current";
+
+					//Process the an unusual case when the area has a node type URL which has a link to an app Page or a site page.
+					//Then there is no SitemapArea in the ErpRequest as the URL does not has the information about one but still it needs to be 
+					//marked as current
+					if (ErpRequestContext.SitemapArea == null)
+					{
+						var urlNodes = area.Nodes.FindAll(x => x.Type == SitemapNodeType.Url);
+						var path = HttpContext.Request.Path;
+						foreach (var urlNode in urlNodes)
+						{
+							if (path == urlNode.Url)
+							{
+								areaMenuItem.Class = "current";
+							}
+						}
+					}
+
 					ApplicationMenu.Add(areaMenuItem);
 				}
 
@@ -252,10 +289,13 @@ namespace WebVella.Erp.Web.Models
 			var sitePages = pageSrv.GetSitePages();
 			foreach (var sitePage in sitePages)
 			{
-				SiteMenu.Add(new MenuItem()
+				if (sitePage.Weight < 1000)
 				{
-					Content = $"<a class=\"dropdown-item\" href=\"/s/{sitePage.Name}\">{sitePage.Label}</a>"
-				});
+					SiteMenu.Add(new MenuItem()
+					{
+						Content = $"<a class=\"dropdown-item\" href=\"/s/{sitePage.Name}\">{sitePage.Label}</a>"
+					});
+				}
 			}
 
 
@@ -263,7 +303,23 @@ namespace WebVella.Erp.Web.Models
 
 
 			DataModel = new PageDataModel(this);
+
+			List<Guid> currentUserRoles = new List<Guid>();
+			if (CurrentUser != null)
+				currentUserRoles.AddRange(CurrentUser.Roles.Select(x => x.Id));
+
+			if (ErpRequestContext.App != null)
+			{
+				if (ErpRequestContext.App.Access == null || ErpRequestContext.App.Access.Count == 0)
+					new LocalRedirectResult("/error?401");
+
+				IEnumerable<Guid> rolesWithAccess = ErpRequestContext.App.Access.Intersect(currentUserRoles);
+				if (!rolesWithAccess.Any())
+					new LocalRedirectResult("/error?401");
+			}
+
 			//Debug.WriteLine(">>>>>>>>>>>>>>>>>>>>>>>>>> Base page init: " + sw.ElapsedMilliseconds);
+			return null;
 		}
 
 		protected bool RecordsExists()
@@ -292,12 +348,12 @@ namespace WebVella.Erp.Web.Models
 				{
 					switch (fieldMeta.GetFieldType())
 					{
-						case FieldType.AutoNumberField:
-							if (property.Value != null && !String.IsNullOrWhiteSpace(property.Value.ToString()))
-							{
-								validation.Errors.Add(new ValidationError(property.Key, "Autonumber field value should be null or empty string"));
-							}
-							break;
+						//case FieldType.AutoNumberField:
+						//	if (property.Value != null && !String.IsNullOrWhiteSpace(property.Value.ToString()))
+						//	{
+						//		validation.Errors.Add(new ValidationError(property.Key, "Autonumber field value should be null or empty string"));
+						//	}
+						//	break;
 						default:
 							if (fieldMeta.Required &&
 								(property.Value == null || String.IsNullOrWhiteSpace(property.Value.ToString())))
@@ -351,7 +407,8 @@ namespace WebVella.Erp.Web.Models
 			return pageModel;
 		}
 
-		public void AddUserMenu(MenuItem menu) {
+		public void AddUserMenu(MenuItem menu)
+		{
 			UserMenu.Add(menu);
 			UserMenu = UserMenu.OrderBy(x => x.SortOrder).ToList();
 		}
@@ -360,6 +417,11 @@ namespace WebVella.Erp.Web.Models
 		{
 
 			#region << Set BodyClass >>
+			ViewData["BodyBorderColor"] = "#555";
+			if (ErpRequestContext.App != null && !String.IsNullOrWhiteSpace(ErpRequestContext.App.Color))
+			{
+				ViewData["BodyBorderColor"] = ErpRequestContext.App.Color;
+			}
 			if (ToolbarMenu.Count > 0)
 			{
 				var bodyClass = ViewData.ContainsKey("BodyClass") ? ViewData["BodyClass"].ToString().ToLowerInvariant() : "";
@@ -387,6 +449,12 @@ namespace WebVella.Erp.Web.Models
 					}
 					ViewData["BodyClass"] = bodyClass + classAddon;
 				}
+			}
+			ViewData["AppName"] = ErpSettings.AppName;
+			ViewData["SystemMasterBodyStyle"] = "";
+			if (!String.IsNullOrWhiteSpace(ErpSettings.SystemMasterBackgroundImageUrl))
+			{
+				ViewData["SystemMasterBodyStyle"] = "background-image: url('" + ErpSettings.SystemMasterBackgroundImageUrl + "');background-position: top center;background-repeat: repeat;min-height: 100vh; ";
 			}
 			#endregion
 		}

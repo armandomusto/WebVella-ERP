@@ -23,6 +23,9 @@ namespace WebVella.Erp.Web.Components
 
 		public class PcDrawerOptions
 		{
+			[JsonProperty(PropertyName = "is_visible")]
+			public string IsVisible { get; set; } = "";
+
 			[JsonProperty(PropertyName = "width")]
 			public string Width { get; set; } = "550px";
 
@@ -47,7 +50,7 @@ namespace WebVella.Erp.Web.Components
 				#region << Init >>
 				if (context.Node == null)
 				{
-					return await Task.FromResult<IViewComponentResult>(Content("Error: The node Id is required to be set as query param 'nid', when requesting this component"));
+					return await Task.FromResult<IViewComponentResult>(Content("Error: The node Id is required to be set as query parameter 'nid', when requesting this component"));
 				}
 
 				var pageFromModel = context.DataModel.GetProperty("Page");
@@ -62,7 +65,7 @@ namespace WebVella.Erp.Web.Components
 
 				if (currentPage == null)
 				{
-					return await Task.FromResult<IViewComponentResult>(Content("Error: The page Id is required to be set as query param 'pid', when requesting this component"));
+					return await Task.FromResult<IViewComponentResult>(Content("Error: The page Id is required to be set as query parameter 'pid', when requesting this component"));
 				}
 
 				var instanceOptions = new PcDrawerOptions();
@@ -74,7 +77,6 @@ namespace WebVella.Erp.Web.Components
 				var componentMeta = new PageComponentLibraryService().GetComponentMeta(context.Node.ComponentName);
 				#endregion
 
-
 				ViewBag.Options = instanceOptions;
 				ViewBag.Node = context.Node;
 				ViewBag.ComponentMeta = componentMeta;
@@ -83,9 +85,25 @@ namespace WebVella.Erp.Web.Components
 				ViewBag.ComponentContext = context;
 				ViewBag.GeneralHelpSection = HelpJsApiGeneralSection;
 
-				if (context.Mode == ComponentMode.Display)
-				{
-					ViewBag.ProcessedTitle = context.DataModel.GetPropertyValueByDataSource(instanceOptions.Title);
+                if (context.Mode != ComponentMode.Options && context.Mode != ComponentMode.Help)
+                {
+
+                    var isVisible = true;
+                    var isVisibleDS = context.DataModel.GetPropertyValueByDataSource(instanceOptions.IsVisible);
+                    if (isVisibleDS is string && !String.IsNullOrWhiteSpace(isVisibleDS.ToString()))
+                    {
+                        if (Boolean.TryParse(isVisibleDS.ToString(), out bool outBool))
+                        {
+                            isVisible = outBool;
+                        }
+                    }
+                    else if (isVisibleDS is Boolean)
+                    {
+                        isVisible = (bool)isVisibleDS;
+                    }
+                    ViewBag.IsVisible = isVisible;
+
+                    ViewBag.ProcessedTitle = context.DataModel.GetPropertyValueByDataSource(instanceOptions.Title);
 				}
 
 				switch (context.Mode)

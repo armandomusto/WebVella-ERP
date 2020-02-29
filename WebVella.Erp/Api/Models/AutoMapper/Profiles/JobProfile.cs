@@ -57,6 +57,13 @@ namespace WebVella.Erp.Api.Models.AutoMapper.Profiles
 			if (src["created_by"] != DBNull.Value)
 				job.CreatedBy = (Guid?)src["created_by"];
 
+			if (job.StartedOn.HasValue && job.StartedOn.Value.Kind == DateTimeKind.Unspecified)
+				job.StartedOn = (DateTime?)DateTime.SpecifyKind(job.StartedOn.Value, DateTimeKind.Utc);
+			if (job.FinishedOn.HasValue && job.FinishedOn.Value.Kind == DateTimeKind.Unspecified)
+				job.FinishedOn = (DateTime?)DateTime.SpecifyKind(job.FinishedOn.Value, DateTimeKind.Utc);
+			if ( job.CreatedOn.Kind == DateTimeKind.Unspecified)
+				job.CreatedOn = DateTime.SpecifyKind(job.CreatedOn, DateTimeKind.Utc);
+
 			return job;
 		}
 
@@ -90,6 +97,8 @@ namespace WebVella.Erp.Api.Models.AutoMapper.Profiles
 			schedulePlan.JobTypeId = (Guid)src["job_type_id"];
 			if (JobManager.JobTypes.Any(t => t.Id == schedulePlan.JobTypeId))
 				schedulePlan.JobType = JobManager.JobTypes.FirstOrDefault(t => t.Id == schedulePlan.JobTypeId);
+			//else
+			//	throw new Exception($"JobType with id='{schedulePlan.JobTypeId}' not found.");
 			if (!string.IsNullOrWhiteSpace(src["job_attributes"].ToString()))
 				schedulePlan.JobAttributes = JsonConvert.DeserializeObject<ExpandoObject>((string)src["job_attributes"], settings);
 			schedulePlan.Enabled = (bool)src["enabled"];

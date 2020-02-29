@@ -1,184 +1,55 @@
-﻿$(function () {
-	var sitemap = "{{SitemapJson}}";
+﻿//JS DateTime picker init method
+var dateTimePickerDictionary = {};
+var flatPickrServerDateTimeFormat = "Y-m-dTH:i:S";//"Z";
+//From the server dates will be received yyyy-MM-ddTHH:mm:ss.fff
+var flatPickrUiDateTimeFormat = "d M Y H:i";
+function InitFlatPickrDateTime(fieldId) {
+    var selector = "#input-" + fieldId;
+    if (document.querySelector(selector)) {
+        var inputGroulEl = $(selector).closest(".input-group");
+        //Inject clear link
+        inputGroulEl.append("<a href='#' class='clear-link d-none'><i class='fa fa-times'><i></a>");
 
-	function initElements() {
-		var initedObj = {};
-		initedObj.navWrapper = document.getElementById("nav");
-		//Area
-		initedObj.areaNavWrapper = document.getElementById("area-nav-wrapper");
-		initedObj.sitemapEl = document.getElementById("sitemap");
-		initedObj.areaNavIcon = document.getElementById("area-nav-icon");
+        var clearLink = inputGroulEl.find(".clear-link");
+        //Show clear link if value not null or empty
+        if ($(selector).val()) {
+            clearLink.removeClass("d-none");
+        }
 
-		//Subarea
-		initedObj.nodeNavWrapper = document.getElementById("node-nav-wrapper");
-		initedObj.nodeNavIcon = document.getElementById("node-nav-icon");
+        clearLink.click(function (event) {
+            event.preventDefault();
+            var fp = document.querySelector(selector)._flatpickr;
+            if (fp) {
+                fp.clear();
+            }
+            else {
+                $(selector).val(null);
+            }
+            clearLink.addClass("d-none");
+        });
 
-		//Record
-		initedObj.recordNavWrapper = document.getElementById("record-nav-wrapper");
-		initedObj.recordNav = document.getElementById("record-nav");
-		initedObj.recordNavIcon = document.getElementById("record-nav-icon");
+        var fp = document.querySelector(selector)._flatpickr;
+        if (!fp) {
+            var options = {
+                time_24hr: true,
+                dateFormat: flatPickrServerDateTimeFormat,
+                defaultDate: null,
+                //locale: BulgarianDateTimeLocale,
+                enableTime: true,
+                "static": true,
+                minuteIncrement: 1,
+                altInput: true,
+                altFormat: flatPickrUiDateTimeFormat,
+                onChange: function (selectedDates) {
+                    if (selectedDates && selectedDates.length > 0) {
+                        clearLink.removeClass("d-none");
+                    }
+                }
+            };
+            fp = flatpickr(selector, options);
+            return fp;
+        }
+        return fp;
 
-		//Current nav state
-		initedObj.currentOpenedMenu = initedObj.navWrapper.getAttribute("data-opened-menu");
-		return initedObj;
-	}
-
-	function getClickedElementType(targetElement) {
-		do {
-			var currentElementId = targetElement.getAttribute("id");
-			if (currentElementId === "area-nav-link") {
-				return "area";
-			}
-			else if (currentElementId === "node-nav-link") {
-				return "node";
-			}
-			else if (currentElementId === "record-nav-link") {
-				return "record";
-			}
-			// Go up the DOM.
-			targetElement = targetElement.parentNode;
-		} while (targetElement);
-		return null;
-	}
-
-	function closeAreaNav() {
-		var initedObj = initElements();
-		initedObj.areaNavWrapper.removeAttribute("class");
-		initedObj.areaNavIcon.setAttribute("class", "ti-angle-right nav-caret");
-		initedObj.sitemapEl.hide();
-		initedObj.navWrapper.removeAttribute("data-opened-menu");
-	};
-
-	function openAreaNav() {
-		var initedObj = initElements();
-		initedObj.areaNavWrapper.setAttribute("class", "active");
-		initedObj.areaNavIcon.setAttribute("class", "ti-close nav-caret");
-		initedObj.sitemapEl.show();
-		initedObj.navWrapper.setAttribute("data-opened-menu", "area");
-	}
-
-	function closeSubareaNav() {
-		var initedObj = initElements();
-		initedObj.nodeNavWrapper.removeAttribute("class");
-		initedObj.nodeNavIcon.setAttribute("class", "ti-angle-right nav-caret");
-		initedObj.navWrapper.removeAttribute("data-opened-menu");
-	}
-
-	function openSubareaNav() {
-		var initedObj = initElements();
-		initedObj.nodeNavWrapper.setAttribute("class", "active");
-		initedObj.nodeNavIcon.setAttribute("class", "ti-close nav-caret");
-		initedObj.navWrapper.setAttribute("data-opened-menu", "node");
-	}
-
-	function closeRecordNav() {
-		var initedObj = initElements();
-		if (initedObj.recordNav) {
-			initedObj.recordNavWrapper.removeAttribute("class");
-			initedObj.recordNavIcon.setAttribute("class", "d-none");
-			initedObj.navWrapper.removeAttribute("data-opened-menu");
-		}
-	}
-	function openRecordNav() {
-		var initedObj = initElements();
-		if (initedObj.recordNav) {
-			initedObj.recordNavWrapper.setAttribute("class", "active");
-			initedObj.recordNavIcon.setAttribute("class", "ti-close nav-caret");
-			initedObj.navWrapper.setAttribute("data-opened-menu", "record");
-		}
-	}
-
-	function navClickHandler(event) {
-		event.preventDefault();
-		event.stopPropagation();
-		//Elements
-		var initedObj = initElements();
-
-		if (initedObj.currentOpenedMenu) {
-			var clickedElementType = getClickedElementType(event.target);
-
-			if (initedObj.currentOpenedMenu === "area" && clickedElementType === "area") {
-				closeAreaNav();
-			}
-			else if (initedObj.currentOpenedMenu === "node" && clickedElementType === "node") {
-				closeSubareaNav();
-			}
-			else if (initedObj.currentOpenedMenu === "record" && clickedElementType === "record") {
-				closeRecordNav();
-			}
-			else if (initedObj.currentOpenedMenu !== "area" && clickedElementType === "area") {
-				closeSubareaNav();
-				closeRecordNav();
-				openAreaNav();
-			}
-			else if (initedObj.currentOpenedMenu !== "node" && clickedElementType === "node") {
-				closeAreaNav();
-				closeRecordNav();
-				openSubareaNav();
-			}
-			else if (initedObj.currentOpenedMenu !== "record" && clickedElementType === "record") {
-				closeAreaNav();
-				closeSubareaNav();
-				openRecordNav();
-			}
-			else {
-				closeAreaNav();
-				closeSubareaNav();
-				closeRecordNav();
-			}
-		}
-		else {
-			//Menu should be opened
-			var clickedElementType2 = getClickedElementType(event.target);
-
-			if (clickedElementType2 === "area") {
-				openAreaNav();
-			}
-			else if (clickedElementType2 === "node") {
-				openSubareaNav();
-			}
-			else if (clickedElementType2 === "record") {
-				openRecordNav();
-			}
-		}
-	}
-
-	document.addEventListener("click", function(event){
-		var initedObj = initElements();
-
-		var targetElement = event.target;
-
-		if (initedObj.currentOpenedMenu) {
-			var safezoneEl = null;
-
-			if (initedObj.currentOpenedMenu === "area") {
-				safezoneEl = document.getElementById("sitemap");
-			}
-			else if (initedObj.currentOpenedMenu === "node") {
-				safezoneEl = document.getElementById("node-nav-dropdown");
-			}
-			else if (initedObj.currentOpenedMenu === "record") {
-				safezoneEl = document.getElementById("record-nav-dropdown");
-			}
-			do {
-				if (targetElement === safezoneEl) {
-					// Do nothing, just return.
-					return;
-				}
-				// Go up the DOM.
-				targetElement = targetElement.parentNode;
-			} while (targetElement);
-		}
-
-		if (initedObj.currentOpenedMenu === "area") {
-			closeAreaNav();
-		}
-		else if (initedObj.currentOpenedMenu === "node") {
-			closeSubareaNav();
-		}
-		else if (initedObj.currentOpenedMenu === "record") {
-			closeRecordNav();
-		}
-
-	});
-});
+    }
+}

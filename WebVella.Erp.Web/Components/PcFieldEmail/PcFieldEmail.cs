@@ -9,6 +9,7 @@ using WebVella.Erp.Api.Models;
 using WebVella.Erp.Exceptions;
 using WebVella.Erp.Web.Models;
 using WebVella.Erp.Web.Services;
+using WebVella.TagHelpers.Models;
 
 namespace WebVella.Erp.Web.Components
 {
@@ -27,15 +28,19 @@ namespace WebVella.Erp.Web.Components
 			[JsonProperty(PropertyName = "maxlength")]
 			public int? MaxLength { get; set; } = null;
 
+			[JsonProperty(PropertyName = "show_icon")]
+			public bool ShowIcon { get; set; } = false;
+
 			public static PcFieldEmailOptions CopyFromBaseOptions(PcFieldBaseOptions input)
 			{
 				return new PcFieldEmailOptions
-				{ 
+				{
+					IsVisible = input.IsVisible,
 					LabelMode = input.LabelMode,
 					LabelText = input.LabelText,
 					Mode = input.Mode,
 					Name = input.Name,
-					MaxLength = null
+					MaxLength = input.MaxLength
 				};
 			}
 		}
@@ -48,7 +53,7 @@ namespace WebVella.Erp.Web.Components
 				#region << Init >>
 				if (context.Node == null)
 				{
-					return await Task.FromResult<IViewComponentResult>(Content("Error: The node Id is required to be set as query param 'nid', when requesting this component"));
+					return await Task.FromResult<IViewComponentResult>(Content("Error: The node Id is required to be set as query parameter 'nid', when requesting this component"));
 				}
 
 				var pageFromModel = context.DataModel.GetProperty("Page");
@@ -70,58 +75,55 @@ namespace WebVella.Erp.Web.Components
 				if (context.Options != null)
 				{
 					options = JsonConvert.DeserializeObject<PcFieldEmailOptions>(context.Options.ToString());
-					//Check for connection to entity field
-					Entity mappedEntity = null;
-					if (options.ConnectedEntityId != null)
+
+					if (context.Mode != ComponentMode.Options)
 					{
-						mappedEntity = new EntityManager().ReadEntity(options.ConnectedEntityId.Value).Object;
-					}
-					else
-					{
-						var entity = context.DataModel.GetProperty("Entity");
-						if (entity is Entity)
-						{
-							mappedEntity = (Entity)entity;
-						}
+						if (options.MaxLength == null)
+							options.MaxLength = baseOptions.MaxLength;
 					}
 
-					if (mappedEntity != null)
-					{
-						var fieldName = options.Name;
-						var entityField = mappedEntity.Fields.FirstOrDefault(x => x.Name == fieldName);
-						if (entityField != null && entityField is EmailField)
-						{
-							var castedEntityField = ((EmailField)entityField);
-							options.MaxLength = castedEntityField.MaxLength;
-						}
-					}
 				}
 				var modelFieldLabel = "";
 				var model = (PcFieldBaseModel)InitPcFieldBaseModel(context, options, label: out modelFieldLabel);
-				if (String.IsNullOrWhiteSpace(options.LabelText))
+				if (String.IsNullOrWhiteSpace(options.LabelText) && context.Mode != ComponentMode.Options)
 				{
 					options.LabelText = modelFieldLabel;
 				}
+
 
 				//Implementing Inherit label mode
 				ViewBag.LabelMode = options.LabelMode;
 				ViewBag.Mode = options.Mode;
 
-				if (options.LabelMode == LabelRenderMode.Undefined && baseOptions.LabelMode != LabelRenderMode.Undefined)
+				if (options.LabelMode == WvLabelRenderMode.Undefined && baseOptions.LabelMode != WvLabelRenderMode.Undefined)
 					ViewBag.LabelMode = baseOptions.LabelMode;
 
-				if (options.Mode == FieldRenderMode.Undefined && baseOptions.Mode != FieldRenderMode.Undefined)
+				if (options.Mode == WvFieldRenderMode.Undefined && baseOptions.Mode != WvFieldRenderMode.Undefined)
 					ViewBag.Mode = baseOptions.Mode;
 
 
 				var componentMeta = new PageComponentLibraryService().GetComponentMeta(context.Node.ComponentName);
+
+				var accessOverride = context.DataModel.GetPropertyValueByDataSource(options.AccessOverrideDs) as WvFieldAccess?;
+				if(accessOverride != null){
+					model.Access = accessOverride.Value;
+				}
+				var requiredOverride = context.DataModel.GetPropertyValueByDataSource(options.RequiredOverrideDs) as bool?;
+				if(requiredOverride != null){
+					model.Required = requiredOverride.Value;
+				}
+				else{
+					if(!String.IsNullOrWhiteSpace(options.RequiredOverrideDs)){
+						if(options.RequiredOverrideDs.ToLowerInvariant() == "true"){
+							model.Required = true;
+						}
+						else if(options.RequiredOverrideDs.ToLowerInvariant() == "false"){
+							model.Required = false;
+						}
+					}
+				}
 				#endregion
 
-
-				if (context.Mode != ComponentMode.Options && context.Mode != ComponentMode.Help)
-				{
-					model.Value = context.DataModel.GetPropertyValueByDataSource(options.Value);
-				}
 
 				ViewBag.Options = options;
 				ViewBag.Model = model;
@@ -129,6 +131,26 @@ namespace WebVella.Erp.Web.Components
 				ViewBag.ComponentMeta = componentMeta;
 				ViewBag.RequestContext = ErpRequestContext;
 				ViewBag.AppContext = ErpAppContext.Current;
+
+				if (context.Mode != ComponentMode.Options && context.Mode != ComponentMode.Help)
+				{
+					var isVisible = true;
+					var isVisibleDS = context.DataModel.GetPropertyValueByDataSource(options.IsVisible);
+					if (isVisibleDS is string && !String.IsNullOrWhiteSpace(isVisibleDS.ToString()))
+					{
+						if (Boolean.TryParse(isVisibleDS.ToString(), out bool outBool))
+						{
+							isVisible = outBool;
+						}
+					}
+					else if (isVisibleDS is Boolean)
+					{
+						isVisible = (bool)isVisibleDS;
+					}
+					ViewBag.IsVisible = isVisible;
+
+					model.Value = context.DataModel.GetPropertyValueByDataSource(options.Value);
+				}
 
 				switch (context.Mode)
 				{

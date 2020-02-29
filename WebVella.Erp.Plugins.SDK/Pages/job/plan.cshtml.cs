@@ -10,6 +10,7 @@ using WebVella.Erp.Plugins.SDK.Utils;
 using WebVella.Erp.Web;
 using WebVella.Erp.Web.Models;
 using WebVella.Erp.Web.Utils;
+using WebVella.TagHelpers.Models;
 
 namespace WebVella.Erp.Plugins.SDK.Pages.Job
 {
@@ -17,7 +18,7 @@ namespace WebVella.Erp.Plugins.SDK.Pages.Job
 	{
 		public PlanModel([FromServices]ErpRequestContext reqCtx) { ErpRequestContext = reqCtx; }
 
-		public List<GridColumn> Columns { get; set; } = new List<GridColumn>();
+		public List<WvGridColumnMeta> Columns { get; set; } = new List<WvGridColumnMeta>();
 
 		public List<OutputSchedulePlan> Records { get; set; } = new List<OutputSchedulePlan>();
 
@@ -36,9 +37,12 @@ namespace WebVella.Erp.Plugins.SDK.Pages.Job
 
 		public List<string> HeaderToolbar { get; private set; } = new List<string>();
 
-		public void OnGet()
+		public IActionResult OnGet()
 		{
-			Init();
+			var initResult = Init();
+			if (initResult != null)
+				return initResult;
+
 
 			#region << InitPage >>
 
@@ -57,31 +61,31 @@ namespace WebVella.Erp.Plugins.SDK.Pages.Job
 
 			#region << Create Columns >>
 
-			Columns = new List<GridColumn>() {
-				new GridColumn(){
+			Columns = new List<WvGridColumnMeta>() {
+				new WvGridColumnMeta(){
 					Name = "action",
 					Width="140px"
 				},
-				new GridColumn(){
+				new WvGridColumnMeta(){
 					Label = "",
 					Name = "status",
 					Width="30px"
 				},
-				new GridColumn(){
+				new WvGridColumnMeta(){
 					Label = "name",
 					Name = "name"
 				},
-				new GridColumn(){
+				new WvGridColumnMeta(){
 					Label = "type",
 					Name = "type",
 					Width="100px"
 				},
-				new GridColumn(){
+				new WvGridColumnMeta(){
 					Label = "last trigger",
 					Name = "last_trigger",
 					Width="140px"
 				},
-				new GridColumn(){
+				new WvGridColumnMeta(){
 					Label = "next trigger",
 					Name = "next_trigger",
 					Width="140px"
@@ -119,6 +123,8 @@ namespace WebVella.Erp.Plugins.SDK.Pages.Job
 			Records = Records.Skip((Pager - 1) * PagerSize).Take(PagerSize).ToList();
 			#endregion
 
+			BeforeRender();
+			return Page();
 		}
 
 		public IActionResult OnPost()
@@ -133,6 +139,7 @@ namespace WebVella.Erp.Plugins.SDK.Pages.Job
 
 			ScheduleManager.Current.TriggerNowSchedulePlan(schedulePlan);
 
+			BeforeRender();
 			return Redirect(PageContext.HttpContext.Request.Path + PageContext.HttpContext.Request.QueryString.ToUriComponent());
 
 		}

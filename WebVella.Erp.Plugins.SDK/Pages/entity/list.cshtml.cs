@@ -11,6 +11,7 @@ using WebVella.Erp.Web.Models;
 using WebVella.Erp.Web.Utils;
 using WebVella.Erp.Web.Services;
 using System.Web;
+using WebVella.TagHelpers.Models;
 
 namespace WebVella.Erp.Plugins.SDK.Pages.ErpEntity
 {
@@ -18,7 +19,7 @@ namespace WebVella.Erp.Plugins.SDK.Pages.ErpEntity
 	{
 		public ListModel([FromServices]ErpRequestContext reqCtx) { ErpRequestContext = reqCtx; }
 
-		public List<GridColumn> Columns { get; set; } = new List<GridColumn>();
+		public List<WvGridColumnMeta> Columns { get; set; } = new List<WvGridColumnMeta>();
 
 		public List<EntityRecord> Records { get; set; } = new List<EntityRecord>();
 
@@ -38,9 +39,11 @@ namespace WebVella.Erp.Plugins.SDK.Pages.ErpEntity
 
 		public List<string> HeaderActions { get; private set; } = new List<string>();
 
-		public void OnGet()
+		public IActionResult OnGet()
 		{
-			Init();
+			var initResult = Init();
+			if (initResult != null)
+				return initResult;
 
 			var entMan = new EntityManager();
 
@@ -84,23 +87,23 @@ namespace WebVella.Erp.Plugins.SDK.Pages.ErpEntity
 
 			#region << Create Columns >>
 
-			Columns = new List<GridColumn>() {
-				new GridColumn(){
+			Columns = new List<WvGridColumnMeta>() {
+				new WvGridColumnMeta(){
 					Name = "action",
 					Width="1%"
 				},
-				new GridColumn(){
+				new WvGridColumnMeta(){
 					Label = "Icon",
 					Name = "icon",
 					Width="1%"
 				},
-				new GridColumn(){
+				new WvGridColumnMeta(){
 					Label = "Name",
 					Name = "name",
 					Sortable = true,
 					Searchable = true
 				},
-				new GridColumn(){
+				new WvGridColumnMeta(){
 					Label = "# fields",
 					Name = "fields",
 					Width="80px"
@@ -137,7 +140,7 @@ namespace WebVella.Erp.Plugins.SDK.Pages.ErpEntity
 			foreach (var entity in allEntities)
 			{
 				var record = new EntityRecord();
-				record["action"] = $"<a class='btn btn-sm btn-white' title='Entity details' href='/sdk/objects/entity/r/{entity.Id}?returnUrl={ReturnUrlEncoded}'><span class='ti-eye'></span></a>";
+				record["action"] = $"<a class='btn btn-sm btn-outline-secondary' title='Entity details' href='/sdk/objects/entity/r/{entity.Id}?returnUrl={ReturnUrlEncoded}'><span class='fa fa-eye'></span></a>";
 				record["icon"] = $"<div class='badge badge-pill' style='font-size:18px;color:{(String.IsNullOrWhiteSpace(entity.Color) ? "#999999" : entity.Color)};'><span class='{entity.IconName}'></span></div>";
 				record["name"] = entity.Name;
 				record["fields"] = entity.Fields.Count.ToString();
@@ -154,6 +157,9 @@ namespace WebVella.Erp.Plugins.SDK.Pages.ErpEntity
 			#endregion
 
 			ErpRequestContext.PageContext = PageContext;
+
+			BeforeRender();
+			return Page();
 		}
 	}
 }

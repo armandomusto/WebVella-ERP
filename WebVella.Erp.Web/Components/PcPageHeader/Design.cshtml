@@ -1,5 +1,7 @@
 ﻿@addTagHelper *, WebVella.Erp.Plugins.Core
 @addTagHelper *, WebVella.Erp.Web
+@addTagHelper *, WebVella.TagHelpers
+@using WebVella.Erp.Web.Utils;
 @using WebVella.Erp.Web.Components;
 @using WebVella.Erp.Web.Models;
 @{
@@ -22,6 +24,9 @@
 	<wv-page-header-actions>
 		<wv-pb-node-container parent-node-id="@node.Id" container-id="actions"></wv-pb-node-container>
 	</wv-page-header-actions>
+	<wv-page-header-actions-aux>
+		<wv-pb-node-container parent-node-id="@node.Id" container-id="actions-aux"></wv-pb-node-container>
+	</wv-page-header-actions-aux>
 	<wv-page-header-toolbar>
 		<wv-pb-node-container parent-node-id="@node.Id" container-id="toolbar"></wv-pb-node-container>
 	</wv-page-header-toolbar>

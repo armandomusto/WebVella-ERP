@@ -26,6 +26,8 @@ namespace WebVella.Erp
 			{
 				//setup necessary extensions
 				DbRepository.CreatePostgresqlExtensions();
+				//setup casts
+				DbRepository.CreatePostgresqlCasts();
 
 				try
 				{
@@ -66,7 +68,7 @@ namespace WebVella.Erp
 							userEntity.LabelPlural = "Users";
 							userEntity.System = true;
 							userEntity.Color = "#f44336";
-							userEntity.IconName = "ti-user";
+							userEntity.IconName = "fa fa-user";
 							userEntity.RecordPermissions = new RecordPermissions();
 							userEntity.RecordPermissions.CanCreate = new List<Guid>();
 							userEntity.RecordPermissions.CanRead = new List<Guid>();
@@ -352,7 +354,7 @@ namespace WebVella.Erp
 							roleEntity.LabelPlural = "Roles";
 							roleEntity.System = true;
 							roleEntity.Color = "#f44336";
-							roleEntity.IconName = "ti-key";
+							roleEntity.IconName = "fa fa-key";
 							roleEntity.RecordPermissions = new RecordPermissions();
 							roleEntity.RecordPermissions.CanCreate = new List<Guid>();
 							roleEntity.RecordPermissions.CanRead = new List<Guid>();
@@ -542,7 +544,7 @@ namespace WebVella.Erp
 									entity.Label = "User File";
 									entity.LabelPlural = "User Files";
 									entity.System = true;
-									entity.IconName = "ti-file";
+									entity.IconName = "fa fa-file";
 									entity.Color = "#f44336";
 									//entity.Weight = (decimal)100.0;
 									entity.RecordPermissions = new RecordPermissions();
@@ -860,7 +862,15 @@ namespace WebVella.Erp
 						}
 						#endregion
 					}
+               if (currentVersion < 2) {
+                  systemSettings.Version = 2;
+                  UpdateSitemapNodeTable1();
+               }
 
+               if (currentVersion < 3) {
+                  systemSettings.Version = 3;
+						UpdateSitemapNodeTable2();                  
+               }
 
 					new DbSystemSettingsRepository().Save(new DbSystemSettings { Id = systemSettings.Id, Version = systemSettings.Version });
 
@@ -956,6 +966,41 @@ namespace WebVella.Erp
 					command = connection.CreateCommand("CREATE TABLE public.system_settings (  id uuid NOT NULL,  version  integer NOT NULL, CONSTRAINT system_settings_pkey	PRIMARY KEY(id)) WITH(	OIDS = FALSE  )");
 					command.ExecuteNonQuery();
 				}
+
+				
+				bool systemSearchTableExists = false;
+				command = connection.CreateCommand("SELECT EXISTS (  SELECT 1 FROM   information_schema.tables  WHERE  table_schema = 'public' AND table_name = 'system_search' ) ");
+				using (var reader = command.ExecuteReader())
+				{
+					reader.Read();
+					systemSearchTableExists = reader.GetBoolean(0);
+					reader.Close();
+				}
+
+				if (!systemSearchTableExists)
+				{
+					const string filesTableSql = @"CREATE TABLE public.system_search (
+  id UUID NOT NULL,
+  entities TEXT DEFAULT ''::text NOT NULL,
+  apps TEXT DEFAULT ''::text NOT NULL,
+  records TEXT DEFAULT ''::text NOT NULL,
+  content TEXT DEFAULT ''::text NOT NULL,
+  snippet TEXT DEFAULT ''::text NOT NULL,
+  url TEXT DEFAULT ''::text NOT NULL,
+  aux_data TEXT DEFAULT ''::text NOT NULL,
+  ""timestamp"" TIMESTAMP(0) WITH TIME ZONE NOT NULL,
+  stem_content TEXT DEFAULT ''::text NOT NULL,
+  CONSTRAINT system_search_pkey PRIMARY KEY(id)
+) 
+WITH(oids = false); ";
+
+					command = connection.CreateCommand(filesTableSql);
+					command.ExecuteNonQuery();
+
+					command = connection.CreateCommand("CREATE INDEX system_search_fts_idx ON system_search USING gin( to_tsvector( 'english', stem_content) )");
+					command.ExecuteNonQuery();
+				}
+
 
 				bool filesTableExists = false;
 				command = connection.CreateCommand("SELECT EXISTS (  SELECT 1 FROM   information_schema.tables  WHERE  table_schema = 'public' AND table_name = 'files' ) ");
@@ -1376,5 +1421,33 @@ CREATE INDEX fki_app_page_data_fkc_page_id ON public.app_page_data_source
 			}
 		}
 
+      private void UpdateSitemapNodeTable1() {
+         using (var connection = DbContext.Current.CreateConnection())
+         {
+               const string updateTable = @"ALTER TABLE public.app_sitemap_area_node 
+                  ADD COLUMN entity_list_pages uuid[] NOT NULL DEFAULT array[]::uuid[],
+                  ADD COLUMN entity_create_pages uuid[] NOT NULL DEFAULT array[]::uuid[],
+                  ADD COLUMN entity_details_pages uuid[] NOT NULL DEFAULT array[]::uuid[],
+                  ADD COLUMN entity_manage_pages uuid[] NOT NULL DEFAULT array[]::uuid[];";
+
+               var command = connection.CreateCommand(updateTable);
+               command.ExecuteNonQuery();
+         }
+      }
+
+      private void UpdateSitemapNodeTable2() {
+         using (var connection = DbContext.Current.CreateConnection())
+         {
+               const string updateTable = @"ALTER TABLE public.app_sitemap_area_node 
+                  ADD COLUMN parent_id uuid DEFAULT NULL;
+
+						ALTER TABLE ONLY public.app_sitemap_area_node
+						ADD CONSTRAINT fkey_app_sitemap_area_node_parent_id
+						FOREIGN KEY (parent_id) REFERENCES app_sitemap_area_node(id);";
+
+               var command = connection.CreateCommand(updateTable);
+               command.ExecuteNonQuery();
+         }
+      }
 	}
 }

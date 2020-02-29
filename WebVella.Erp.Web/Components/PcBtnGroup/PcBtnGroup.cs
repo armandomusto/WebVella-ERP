@@ -8,6 +8,7 @@ using WebVella.Erp.Exceptions;
 using WebVella.Erp.Web.Models;
 using WebVella.Erp.Web.Services;
 using WebVella.Erp.Web.Utils;
+using WebVella.TagHelpers.Models;
 
 namespace WebVella.Erp.Web.Components
 {
@@ -23,8 +24,11 @@ namespace WebVella.Erp.Web.Components
 
 		public class PcBtnGroupOptions
 		{
+			[JsonProperty(PropertyName = "is_visible")]
+			public string IsVisible { get; set; } = "";
+
 			[JsonProperty(PropertyName = "size")]
-			public CssSize Size { get; set; } = CssSize.Inherit;
+			public WvCssSize Size { get; set; } = WvCssSize.Inherit;
 
 			[JsonProperty(PropertyName = "is_vertical")]
 			public bool IsVertical { get; set; } = false;
@@ -45,7 +49,7 @@ namespace WebVella.Erp.Web.Components
 				#region << Init >>
 				if (context.Node == null)
 				{
-					return await Task.FromResult<IViewComponentResult>(Content("Error: The node Id is required to be set as query param 'nid', when requesting this component"));
+					return await Task.FromResult<IViewComponentResult>(Content("Error: The node Id is required to be set as query parameter 'nid', when requesting this component"));
 				}
 
 				var pageFromModel = context.DataModel.GetProperty("Page");
@@ -60,7 +64,7 @@ namespace WebVella.Erp.Web.Components
 
 				if (currentPage == null)
 				{
-					return await Task.FromResult<IViewComponentResult>(Content("Error: The page Id is required to be set as query param 'pid', when requesting this component"));
+					return await Task.FromResult<IViewComponentResult>(Content("Error: The page Id is required to be set as query parameter 'pid', when requesting this component"));
 				}
 
 				var instanceOptions = new PcBtnGroupOptions();
@@ -72,18 +76,36 @@ namespace WebVella.Erp.Web.Components
 				var componentMeta = new PageComponentLibraryService().GetComponentMeta(context.Node.ComponentName);
 				#endregion
 
-
 				ViewBag.Options = instanceOptions;
 				ViewBag.Node = context.Node;
 				ViewBag.ComponentMeta = componentMeta;
 				ViewBag.RequestContext = ErpRequestContext;
 				ViewBag.AppContext = ErpAppContext.Current;
 				ViewBag.ComponentContext = context;
+
 				ViewBag.GeneralHelpSection = HelpJsApiGeneralSection;
 
-				ViewBag.CssSize = ModelExtensions.GetEnumAsSelectOptions<CssSize>();
+                if (context.Mode != ComponentMode.Options && context.Mode != ComponentMode.Help)
+                {
+                    var isVisible = true;
+                    var isVisibleDS = context.DataModel.GetPropertyValueByDataSource(instanceOptions.IsVisible);
+                    if (isVisibleDS is string && !String.IsNullOrWhiteSpace(isVisibleDS.ToString()))
+                    {
+                        if (Boolean.TryParse(isVisibleDS.ToString(), out bool outBool))
+                        {
+                            isVisible = outBool;
+                        }
+                    }
+                    else if (isVisibleDS is Boolean)
+                    {
+                        isVisible = (bool)isVisibleDS;
+                    }
+                    ViewBag.IsVisible = isVisible;
+                }
 
-				switch (context.Mode)
+                ViewBag.CssSize = WebVella.TagHelpers.Utilities.ModelExtensions.GetEnumAsSelectOptions<WvCssSize>();
+
+                switch (context.Mode)
 				{
 					case ComponentMode.Display:
 						return await Task.FromResult<IViewComponentResult>(View("Display"));

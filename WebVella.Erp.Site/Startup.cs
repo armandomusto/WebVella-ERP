@@ -1,29 +1,23 @@
-﻿using System;
+﻿using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
-using Microsoft.Extensions.DependencyInjection;
-using System.Globalization;
-using Microsoft.Net.Http.Headers;
-using Microsoft.AspNetCore.ResponseCompression;
-using System.IO.Compression;
-using WebVella.Erp.Web;
 using Microsoft.AspNetCore.Http;
-using WebVella.Erp.Web.Middleware;
-using Microsoft.AspNetCore.Authentication.Cookies;
-using Swashbuckle.AspNetCore.Swagger;
+using Microsoft.AspNetCore.ResponseCompression;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Net.Http.Headers;
+using Newtonsoft.Json;
+using System;
+using System.Collections.Generic;
+using System.Globalization;
+using System.IO.Compression;
 using WebVella.Erp.Plugins.SDK;
-using WebVella.Erp.Plugins.Next;
-using WebVella.Erp.Plugins.Project;
-using WebVella.Erp.Plugins.Crm;
+using WebVella.Erp.Web;
+using WebVella.Erp.Web.Middleware;
 
 namespace WebVella.Erp.Site
 {
 	public class Startup
 	{
-		public Startup()
-		{
-		}
-
 		// This method gets called by the runtime. Use this method to add services to the container.
 		public void ConfigureServices(IServiceCollection services)
 		{
@@ -35,7 +29,7 @@ namespace WebVella.Erp.Site
 			services.AddCors(options =>
 			{
 				options.AddPolicy("AllowNodeJsLocalhost",
-					builder => builder.WithOrigins("http://localhost:3000", "http://localhost").AllowAnyMethod().AllowCredentials());
+					builder => builder.WithOrigins("http://localhost:3333", "http://localhost:3000", "http://localhost").AllowAnyMethod().AllowCredentials());
 			});
 
 			services.AddDetectionCore().AddDevice();
@@ -47,45 +41,42 @@ namespace WebVella.Erp.Site
 					options.Conventions.AuthorizeFolder("/");
 					options.Conventions.AllowAnonymousToPage("/login");
 				})
-				.AddJsonOptions(options =>
+				.AddNewtonsoftJson(options =>
 			   {
 				   options.SerializerSettings.Converters.Add(new ErpDateTimeJsonConverter());
 			   });
 
-			services.AddSwaggerGen(c => { c.SwaggerDoc("v1", new Info { Title = "Erp API", Version = "v1" }); });
+			services.AddControllersWithViews();
+			services.AddRazorPages().AddRazorRuntimeCompilation();
+
+			//adds global datetime converter for json.net
+			JsonConvert.DefaultSettings = () => new JsonSerializerSettings
+			{
+				Converters = new List<JsonConverter> { new ErpDateTimeJsonConverter() }
+			};
+
 
 			services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
 					.AddCookie(options =>
 					{
 						options.Cookie.HttpOnly = true;
-						options.Cookie.Name = "erp_auth";
+						options.Cookie.Name = "erp_auth_base";
 						options.LoginPath = new PathString("/login");
 						options.LogoutPath = new PathString("/logout");
 						options.AccessDeniedPath = new PathString("/error?access_denied");
-						options.ReturnUrlParameter = "ret_url";
+						options.ReturnUrlParameter = "returnUrl";
 					});
 
 			services.AddErp();
 		}
 
 		// This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
-		public void Configure(IApplicationBuilder app, IHostingEnvironment env)
+		public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
 		{
 			app.UseRequestLocalization(new RequestLocalizationOptions
 			{
 				DefaultRequestCulture = new Microsoft.AspNetCore.Localization.RequestCulture(CultureInfo.GetCultureInfo("en-US"))
 			});
-
-			app.UseAuthentication();
-
-			app
-			.UseErpPlugin<NextPlugin>()
-			.UseErpPlugin<SdkPlugin>()
-			//.UseErpPlugin<ProjectPlugin>()
-			.UseErpPlugin<CrmPlugin>()
-			.UseErp()
-			//.UseErp(configFolder: configFolder)
-			.UseErpMiddleware();
 
 			//env.EnvironmentName = EnvironmentName.Production;
 			// Add the following to the request pipeline only in development environment.
@@ -109,19 +100,29 @@ namespace WebVella.Erp.Site
 
 			app.UseStaticFiles(new StaticFileOptions
 			{
+				ServeUnknownFileTypes = false,
 				OnPrepareResponse = ctx =>
 				{
-					const int durationInSeconds = 60 * 60 * 24 * 30; //30 days caching of these resources
-					ctx.Context.Response.Headers[HeaderNames.CacheControl] =
-						"public,max-age=" + durationInSeconds;
-				}
+					const int durationInSeconds = 60 * 60 * 24 * 30 * 12;
+					ctx.Context.Response.Headers[HeaderNames.CacheControl] = "public,max-age=" + durationInSeconds;
+					ctx.Context.Response.Headers[HeaderNames.Expires] = new[] { DateTime.UtcNow.AddYears(1).ToString("R") }; // Format RFC1123
+					}
 			});
+			app.UseStaticFiles(); //Workaround for blazor to work - https://github.com/dotnet/aspnetcore/issues/9588
+			app.UseRouting();
+			app.UseAuthentication();
+			app.UseAuthorization();
 
-			app.UseMvc(routes => { routes.MapRoute(name: "default", template: "{controller=Home}/{action=Index}/{id?}"); });
+			app
+			.UseErpPlugin<SdkPlugin>()
+			.UseErp()
+			.UseErpMiddleware();
 
-			app.UseSwagger();
-
-			app.UseSwaggerUI(c => { c.SwaggerEndpoint("/swagger/v1/swagger.json", "Erp API V1"); });
+			app.UseEndpoints(endpoints =>
+			{
+				endpoints.MapRazorPages();
+				endpoints.MapControllerRoute("default", "{controller=Home}/{action=Index}/{id?}");
+			});
 		}
 	}
 }

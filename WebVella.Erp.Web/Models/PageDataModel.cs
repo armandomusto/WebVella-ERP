@@ -14,6 +14,8 @@ namespace WebVella.Erp.Web.Models
 {
 	public class PageDataModel
 	{
+		internal bool SafeCodeDataVariable { get; set; } = false;
+
 		DataSourceManager dsMan = new DataSourceManager();
 		RecordManager recMan = new RecordManager();
 		EntityRelationManager relMan = new EntityRelationManager();
@@ -28,7 +30,6 @@ namespace WebVella.Erp.Web.Models
 			if (erpPageModel.ErpRequestContext != null && erpPageModel.ErpRequestContext.Page != null)
 				InitDataSources(erpPageModel.ErpRequestContext.Page);
 		}
-
 
 		private void InitContextRelatedData(BaseErpPageModel erpPageModel)
 		{
@@ -118,7 +119,7 @@ namespace WebVella.Erp.Web.Models
 
 					Properties.Add("ParentRecord", new MPW(MPT.EntityRecord, null));
 				}
-		
+
 				//this is the case with no entity page
 				else
 				{
@@ -399,7 +400,7 @@ namespace WebVella.Erp.Web.Models
 				DataSourceVariable variable = null;
 				try
 				{
-					variable = JsonConvert.DeserializeObject<DataSourceVariable>(text);
+					variable = JsonConvert.DeserializeObject<DataSourceVariable>(text, new JsonSerializerSettings() { MissingMemberHandling = MissingMemberHandling.Error });
 				}
 				catch
 				{
@@ -427,10 +428,55 @@ namespace WebVella.Erp.Web.Models
 						result = GetProperty(variable.String);
 						break;
 					case DataSourceVariableType.CODE:
-						result = CodeEvalService.Evaluate(variable.String, erpPageModel);
+						if (SafeCodeDataVariable)
+						{
+							try { result = CodeEvalService.Evaluate(variable.String, erpPageModel); } catch { result = null; }
+						}
+						else
+						{
+							result = CodeEvalService.Evaluate(variable.String, erpPageModel);
+						}
 						break;
 					case DataSourceVariableType.HTML:
 						result = variable.String;
+						break;
+					case DataSourceVariableType.SNIPPET:
+						if (SafeCodeDataVariable)
+						{
+							var snippet = SnippetService.GetSnippet(variable.String);
+							if (snippet == null)
+								result = $"Snippet '{variable.String}' is not found.";
+							else
+							{
+								if (snippet.Name.ToLowerInvariant().EndsWith(".cs"))
+								{
+									string csCode = snippet.GetText();
+									try { result = CodeEvalService.Evaluate(csCode, erpPageModel); } catch { result = null; }
+								}
+								else
+								{
+									result = snippet.GetText();
+								}
+							}
+						}
+						else
+						{
+							var snippet = SnippetService.GetSnippet(variable.String);
+							if (snippet == null)
+								result = $"Snippet '{variable.String}' is not found.";
+							else
+							{
+								if (snippet.Name.ToLowerInvariant().EndsWith(".cs"))
+								{
+									string csCode = snippet.GetText();
+									result = CodeEvalService.Evaluate(csCode, erpPageModel);
+								}
+								else
+								{
+									result = snippet.GetText();
+								}
+							}
+						}
 						break;
 					default:
 						throw new NotSupportedException(variable.Type.ToString());
@@ -516,7 +562,12 @@ namespace WebVella.Erp.Web.Models
 				}
 
 				if (!currentPropDict.ContainsKey(pName))
-					throw new PropertyDoesNotExistException($"Property name '{currentPropertyNamePath}' not found.");
+				{
+					if (!currentPropertyNamePath.EndsWith("]"))
+						throw new PropertyDoesNotExistException($"Property name '{currentPropertyNamePath}' not found.");
+					else
+						throw new PropertyDoesNotExistException($"Property name is found, but list index is out of bounds.");
+				}
 
 				mpw = currentPropDict[pName];
 				if (mpw != null && mpw.Type == MPT.DataSource)
@@ -526,9 +577,20 @@ namespace WebVella.Erp.Web.Models
 					{
 						var result = ExecDataSource(dsw);
 						if (result is List<EntityRecord> || result is EntityRecordList)
+						{
 							mpw = new MPW(MPT.ListEntityRecords, result);
+							currentPropDict[pName] = mpw;
+						}
+						else if (result is EntityRecord)
+						{
+							mpw = new MPW(MPT.EntityRecord, result);
+							currentPropDict[pName] = mpw;
+						}
 						else
+						{
 							mpw = new MPW(MPT.Object, result);
+							currentPropDict[pName] = mpw;
+						}
 					}
 				}
 				currentPropDict = mpw.Properties;
@@ -589,7 +651,10 @@ namespace WebVella.Erp.Web.Models
 
 				arguments["PageModel"] = this;
 				var codeDS = (CodeDataSource)dsWrapper.DataSource;
-				return codeDS.Execute(arguments);
+				if (SafeCodeDataVariable)
+					try { return codeDS.Execute(arguments); } catch { return null; }
+				else
+					return codeDS.Execute(arguments);
 			}
 			else if (dsWrapper.DataSource.Type == DataSourceType.DATABASE)
 			{
@@ -644,7 +709,7 @@ namespace WebVella.Erp.Web.Models
 
 		private string CheckProcessDefaultValue(string value)
 		{
-			if(!string.IsNullOrEmpty(value))
+			if (!string.IsNullOrEmpty(value))
 			{
 				switch (value.ToLowerInvariant())
 				{
@@ -757,12 +822,12 @@ namespace WebVella.Erp.Web.Models
 						foreach (var propName in record.Properties.Keys)
 						{
 							var propValue = record[propName];
-							//the case when set record from page post 
+							//the case when set record from page post
 							if (propName.StartsWith("$") && propName.Contains(".") && propValue is List<Guid>)
 							{
 								string[] split = propName.Split('.');
 								List<EntityRecord> records = new List<EntityRecord>();
-								foreach(Guid id in (List<Guid>)propValue)
+								foreach (Guid id in (List<Guid>)propValue)
 								{
 									EntityRecord rec = new EntityRecord();
 									rec["id"] = id;

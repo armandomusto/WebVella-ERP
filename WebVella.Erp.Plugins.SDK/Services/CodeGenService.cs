@@ -24,7 +24,7 @@ namespace WebVella.Erp.Plugins.SDK.Services
 
 
 		public MetaChangeResponseModel EvaluateMetaChanges(string connectionString, List<string> entityRecordsToCompare,
-					bool includeEntityMeta, bool includeEntityRelations, bool includeRoles, bool includeApplications)
+					bool includeEntityMeta, bool includeEntityRelations, bool includeRoles, bool includeApplications, List<string> NNRelationsRecordsToCompare)
 		{
 			ValidationException valEx = new ValidationException();
 
@@ -51,9 +51,6 @@ namespace WebVella.Erp.Plugins.SDK.Services
 			//Relations
 			var currentRelationsList = new List<DbEntityRelation>();
 			var oldRelationsList = new List<DbEntityRelation>();
-			var oldRelationsDictionary = new Dictionary<Guid, DbEntityRelation>();
-			var oldRelationsProcessedDictionary = new Dictionary<Guid, bool>();
-			var relationsNameDictionary = new Dictionary<string, DbEntityRelation>();
 
 			//Roles
 			var currentRoleList = new List<EntityRecord>();
@@ -85,14 +82,6 @@ namespace WebVella.Erp.Plugins.SDK.Services
 			}
 			#endregion
 
-			#region << Generate relations list >>
-			foreach (var relation in currentRelationsList)
-			{
-				relationsNameDictionary[relation.Name] = relation;
-			}
-
-			#endregion
-
 			if (includeEntityMeta)
 			{
 				#region << Process entity >>
@@ -110,7 +99,7 @@ namespace WebVella.Erp.Plugins.SDK.Services
 						changeRow.Name = entity.Name;
 						response.Changes.Add(changeRow);
 						string entityCode = "";
-						CreateEntityCode(entity, relationsNameDictionary, out entityCode);
+						CreateEntityCode(entity, out entityCode);
 						response.Code += entityCode;
 					}
 					else
@@ -161,64 +150,10 @@ namespace WebVella.Erp.Plugins.SDK.Services
 			{
 				#region << Process relations >>
 
-				#region << Init >>
-				foreach (var relation in oldRelationsList)
-				{
-					oldRelationsDictionary[relation.Id] = relation;
-				}
-				#endregion
-
-				#region << Logic >>
-				foreach (var relation in currentRelationsList)
-				{
-					if (!oldRelationsDictionary.ContainsKey(relation.Id))
-					{
-						//// CREATED
-						/////////////////////////////////////////////////////
-						if (!relation.Name.EndsWith("created_by") && !relation.Name.EndsWith("modified_by"))
-						{
-							//the creation of system fields and relations is handled in the create entity script
-							var changeCode = CreateRelationCode(relation);
-							changeRow = new MetaChangeModel();
-							changeRow.Element = "relation";
-							changeRow.Type = "created";
-							changeRow.Name = relation.Name;
-							changeRow.ChangeList = new List<string>();
-							if (changeCode == string.Empty)
-							{
-								changeRow.ChangeList.Add(@"<span class='go-gray'>No code will be generated. It is automatically created, in the entity creation process</span>");
-							}
-							response.Changes.Add(changeRow);
-							response.Code += changeCode;
-						}
-					}
-					else
-					{
-						//// POSSIBLE UPDATE
-						/////////////////////////////////////////////////////
-						var changeCheckResponse = UpdateRelationCode(relation, oldRelationsDictionary[relation.Id]);
-						if (changeCheckResponse.HasUpdate)
-						{
-							//1.1 Updated
-							changeRow = new MetaChangeModel();
-							changeRow.Element = "relation";
-							changeRow.Type = "updated";
-							changeRow.Name = relation.Name;
-							changeRow.ChangeList = changeCheckResponse.ChangeList;
-							response.Changes.Add(changeRow);
-							response.Code += changeCheckResponse.Code;
-						}
-
-						// MARK ID AS PROCESSED
-						/////////////////////////////////////////////////////
-						oldRelationsProcessedDictionary[relation.Id] = true;
-					}
-
-				}
 
 				foreach (var relation in oldRelationsList)
 				{
-					if (!oldRelationsProcessedDictionary.ContainsKey(relation.Id))
+					if (!currentRelationsList.Any(x => x.Id == relation.Id))
 					{
 						//// DELETED
 						/////////////////////////////////////////////////////
@@ -231,7 +166,46 @@ namespace WebVella.Erp.Plugins.SDK.Services
 					}
 				}
 
-				#endregion
+
+				foreach (var relation in currentRelationsList)
+				{
+					var oldRelation = oldRelationsList.SingleOrDefault(x => x.Id == relation.Id);
+					if (oldRelation == null)
+					{
+						//// CREATED
+						/////////////////////////////////////////////////////
+						var changeCode = CreateRelationCode(relation);
+						changeRow = new MetaChangeModel();
+						changeRow.Element = "relation";
+						changeRow.Type = "created";
+						changeRow.Name = relation.Name;
+						changeRow.ChangeList = new List<string>();
+						if (changeCode == string.Empty)
+						{
+							changeRow.ChangeList.Add(@"<span class='go-gray'>No code will be generated. It is automatically created, in the entity creation process</span>");
+						}
+						response.Changes.Add(changeRow);
+						response.Code += changeCode;
+					}
+					else
+					{
+						//// POSSIBLE UPDATE
+						/////////////////////////////////////////////////////
+						var changeCheckResponse = UpdateRelationCode(relation, oldRelation);
+						if (changeCheckResponse.HasUpdate)
+						{
+							//1.1 Updated
+							changeRow = new MetaChangeModel();
+							changeRow.Element = "relation";
+							changeRow.Type = "updated";
+							changeRow.Name = relation.Name;
+							changeRow.ChangeList = changeCheckResponse.ChangeList;
+							response.Changes.Add(changeRow);
+							response.Code += changeCheckResponse.Code;
+						}
+					}
+
+				}
 
 				#endregion
 			}
@@ -521,7 +495,7 @@ namespace WebVella.Erp.Plugins.SDK.Services
 					}
 				}
 
-			
+
 
 				#endregion
 
@@ -821,6 +795,9 @@ namespace WebVella.Erp.Plugins.SDK.Services
 
 				foreach (var id in entityRecordsToCompare)
 				{
+					if (id == null)
+						continue;
+
 					//compare only if entity exists in both databases
 					Guid entityId = new Guid(id);
 					if (oldEntityDictionary.ContainsKey(entityId) && currentEntityList.Any(x => x.Id == entityId))
@@ -881,6 +858,69 @@ namespace WebVella.Erp.Plugins.SDK.Services
 
 				}
 			}
+
+			if (NNRelationsRecordsToCompare != null && NNRelationsRecordsToCompare.Count > 0)
+			{
+
+				foreach (var id in NNRelationsRecordsToCompare)
+				{
+					if (id == null)
+						continue;
+
+					//compare only if relation exists in both databases
+					Guid relationId = new Guid(id);
+					var relation = new EntityRelationManager().Read(relationId).Object;
+					if(relation == null)
+						throw new Exception("Relation not found");
+
+					List<DatabaseNNRelationRecord> recordsToCreate = new List<DatabaseNNRelationRecord>();
+					List<DatabaseNNRelationRecord> recordsToDelete = new List<DatabaseNNRelationRecord>();
+
+					var oldRelationRecords = ReadOldNNRelationRecords(relation);
+					var currentRelationRecords = ReadCurrentNNRelationRecords(relation);
+
+					//Create all records = existing in current but not in old
+					foreach (var relRecord in currentRelationRecords)
+					{
+						if(!oldRelationRecords.Any(x=> x.OriginId == relRecord.OriginId && x.TargetId == relRecord.TargetId)){
+							recordsToCreate.Add(relRecord);
+						}
+					}
+
+					//Delete all records = existing in old but not in current
+					foreach (var relRecord in oldRelationRecords)
+					{
+						if(!currentRelationRecords.Any(x=> x.OriginId == relRecord.OriginId && x.TargetId == relRecord.TargetId)){
+							recordsToDelete.Add(relRecord);
+						}
+					}
+
+
+					foreach (var rec in recordsToCreate)
+					{
+						changeRow = new MetaChangeModel();
+						changeRow.Element = "relation record";
+						changeRow.Type = "created";
+						changeRow.Name = $"{relation.Name}";
+						changeRow.ChangeList = new List<string>{$"{rec.OriginId} <> {rec.TargetId}"};
+						response.Changes.Add(changeRow);
+						response.Code += CreateNNRelationRecordCode(relation, rec.OriginId, rec.TargetId);
+					}
+
+					foreach (var rec in recordsToDelete)
+					{
+						changeRow = new MetaChangeModel();
+						changeRow.Element = "relation record";
+						changeRow.Type = "deleted";
+						changeRow.Name = $"{relation.Name}";
+						changeRow.ChangeList = new List<string>{$"{rec.OriginId} <> {rec.TargetId}"};
+						response.Changes.Add(changeRow);
+						response.Code += DeleteNNRelationRecordCode(relation, rec.OriginId, rec.TargetId);
+					}
+				}
+
+			}
+
 			return response;
 		}
 
@@ -1205,12 +1245,52 @@ namespace WebVella.Erp.Plugins.SDK.Services
 			}
 		}
 
+		private List<DatabaseNNRelationRecord> ReadCurrentNNRelationRecords(EntityRelation relation)
+		{
+			using (DbConnection con = DbContext.Current.CreateConnection())
+			{
+				var command = con.CreateCommand($"SELECT * FROM public.rel_{relation.Name}");
+				DataTable dt = new DataTable();
+				new NpgsqlDataAdapter(command).Fill(dt);
+
+				List<DatabaseNNRelationRecord> result = new List<DatabaseNNRelationRecord>();
+				foreach (DataRow row in dt.Rows)
+					result.Add(row.MapTo<DatabaseNNRelationRecord>());
+
+				return result;
+			}
+		}
+
+		private List<DatabaseNNRelationRecord> ReadOldNNRelationRecords(EntityRelation relation)
+		{
+			using (NpgsqlConnection con = new NpgsqlConnection(OldDbConnectionString))
+			{
+				try
+				{
+					con.Open();
+					var command = new NpgsqlCommand($"SELECT * FROM public.rel_{relation.Name}", con);
+					DataTable dt = new DataTable();
+					new NpgsqlDataAdapter(command).Fill(dt);
+
+					List<DatabaseNNRelationRecord> result = new List<DatabaseNNRelationRecord>();
+					foreach (DataRow row in dt.Rows)
+						result.Add(row.MapTo<DatabaseNNRelationRecord>());
+
+					return result;
+				}
+				finally
+				{
+					con.Close();
+				}
+			}
+		}
+
 		#endregion
 
 		#region << Entity >>
 
 
-		private void CreateEntityCode(DbEntity entity, Dictionary<string, DbEntityRelation> relationsNameDictionary, out string entityResponse)
+		private void CreateEntityCode(DbEntity entity, out string entityResponse)
 		{
 			entityResponse = "";
 			//escape some possible quotes
@@ -1858,7 +1938,7 @@ $"#region << ***Create entity*** Entity name: {entity.Name} >>\n" +
 			}
 
 			response +=
-			$"\tcurrencyField.Currency = WebVella.ERP.Utilities.Helpers.GetCurrencyTypeObject(\"{field.Currency.Code}\");\n" +
+			$"\tcurrencyField.Currency = WebVella.Erp.Utilities.Helpers.GetCurrencyType(\"{field.Currency.Code}\");\n" +
 			$"\tcurrencyField.EnableSecurity = {(field.EnableSecurity).ToString().ToLowerInvariant()};\n" +
 			"\tcurrencyField.Permissions = new FieldPermissions();\n" +
 			"\tcurrencyField.Permissions.CanRead = new List<Guid>();\n" +
@@ -2535,10 +2615,10 @@ $"#region << ***Create field***  Entity: {entityName} Field Name: {field.Name} >
 			var fieldOptions = field.Options.ToList();
 			if (fieldOptions.Count > 0)
 			{
-				response += "new List<MultiSelectFieldOption>\n\t{\n";
+				response += "new List<SelectOption>\n\t{\n";
 				for (int i = 0; i < fieldOptions.Count; i++)
 				{
-					response += $"\t\tnew MultiSelectFieldOption() {{ Label = \"{fieldOptions[i].Label}\", Value = \"{fieldOptions[i].Value}\", IconClass = \"{fieldOptions[i].IconClass}\", Color = \"{fieldOptions[i].Color}\"  }}";
+					response += $"\t\tnew SelectOption() {{ Label = \"{fieldOptions[i].Label}\", Value = \"{fieldOptions[i].Value}\" , IconClass = \"{fieldOptions[i].IconClass}\", Color = \"{fieldOptions[i].Color}\"}}";
 					if (i < fieldOptions.Count - 1)
 					{
 						response += ",\n";
@@ -4001,7 +4081,7 @@ $"#region << ***Create field***  Entity: {entityName} Field Name: {field.Name} >
 			}
 
 			response +=
-			$"\tcurrencyField.Currency = WebVella.ERP.Utilities.Helpers.GetCurrencyTypeObject(\"{currentField.Currency.Code}\");\n" +
+			$"\tcurrencyField.Currency = WebVella.Erp.Utilities.Helpers.GetCurrencyType(\"{currentField.Currency.Code}\");\n" +
 			$"\tcurrencyField.EnableSecurity = {(currentField.EnableSecurity).ToString().ToLowerInvariant()};\n" +
 			"\tcurrencyField.Permissions = new FieldPermissions();\n" +
 			"\tcurrencyField.Permissions.CanRead = new List<Guid>();\n" +
@@ -5302,10 +5382,10 @@ $"#region << ***Create field***  Entity: {entityName} Field Name: {field.Name} >
 			var fieldOptions = currentField.Options.ToList();
 			if (fieldOptions.Count > 0)
 			{
-				response += "new List<MultiSelectFieldOption>\n\t{\n";
+				response += "new List<SelectOption>\n\t{\n";
 				for (int i = 0; i < fieldOptions.Count; i++)
 				{
-					response += $"\t\tnew MultiSelectFieldOption() {{ Label = \"{fieldOptions[i].Label}\", Value = \"{fieldOptions[i].Value}\" , IconClass = \"{fieldOptions[i].IconClass}\", Color = \"{fieldOptions[i].Color}\"}}";
+					response += $"\t\tnew SelectOption() {{ Label = \"{fieldOptions[i].Label}\", Value = \"{fieldOptions[i].Value}\" , IconClass = \"{fieldOptions[i].IconClass}\", Color = \"{fieldOptions[i].Color}\"}}";
 					if (i < fieldOptions.Count - 1)
 					{
 						response += ",\n";
@@ -5335,7 +5415,7 @@ $"#region << ***Create field***  Entity: {entityName} Field Name: {field.Name} >
 			}
 			response +=
 			"\t{\n" +
-				$"\t\tvar response = entMan.UpdateField(new Guid(\"{entityId}\"), multiSelectField, false);\n" +
+				$"\t\tvar response = entMan.UpdateField(new Guid(\"{entityId}\"), multiSelectField);\n" +
 				"\t\tif (!response.Success)\n" +
 					$"\t\t\tthrow new Exception(\"System error 10060. Entity: {entityName} Field: {currentField.Name} Message:\" + response.Message);\n" +
 			"\t}\n" +
@@ -6466,8 +6546,8 @@ $"#region << ***Update field***  Entity: {entityName} Field Name: {currentField.
 			{
 				foreach (var option in oldField.Options.ToList())
 				{
-					var currentFieldOption = currentField.Options.SingleOrDefault(x => x.Label == option.Label);
-					if (currentFieldOption == null || currentFieldOption.Value != option.Value ||
+					var currentFieldOption = currentField.Options.SingleOrDefault(x => x.Value == option.Value);
+					if (currentFieldOption == null || currentFieldOption.Label != option.Label ||
 						currentFieldOption.Color != option.Color || currentFieldOption.IconClass != option.IconClass)
 					{
 						hasUpdate = true;
@@ -7743,6 +7823,7 @@ $"#region << ***Update role*** Role name: {(string)currentRole["name"]} >>\n" +
 			var response = $"#region << ***Create sitemap node*** Sitemap node name: {node.Name} >>\n" +
 			"{\n" +
 				$"\tvar id = new Guid(\"{node.Id.ToString()}\");\n" +
+				(node.ParentId.HasValue ? $"\tvar parentId = new Guid(\"{node.ParentId.ToString()}\");\n" : $"\tGuid? parentId = null;\n")	 +
 				$"\tvar areaId = new Guid(\"{areaId.ToString()}\");\n" +
 				(node.EntityId.HasValue ? $"\tGuid? entityId = new Guid(\"{node.EntityId}\");\n" : $"\tGuid? entityId = null;\n") +
 				$"\tvar name = \"{node.Name}\";\n" +
@@ -7755,11 +7836,28 @@ $"#region << ***Update role*** Role name: {(string)currentRole["name"]} >>\n" +
 			foreach (Guid roleId in node.Access)
 				response += $"\taccess.Add( new Guid(\"{roleId.ToString()}\") );\n";
 
+			response += $"\tvar entityListPages = new List<Guid>();\n";
+			foreach (Guid pageId in node.EntityListPages)
+				response += $"\tentityListPages.Add( new Guid(\"{pageId.ToString()}\") );\n";
+
+			response += $"\tvar entityCreatePages = new List<Guid>();\n";
+			foreach (Guid pageId in node.EntityCreatePages)
+				response += $"\tentityCreatePages.Add( new Guid(\"{pageId.ToString()}\") );\n";
+
+			response += $"\tvar entityDetailsPages = new List<Guid>();\n";
+			foreach (Guid pageId in node.EntityDetailsPages)
+				response += $"\tentityDetailsPages.Add( new Guid(\"{pageId.ToString()}\") );\n";
+
+			response += $"\tvar entityManagePages = new List<Guid>();\n";
+			foreach (Guid pageId in node.EntityManagePages)
+				response += $"\tentityManagePages.Add( new Guid(\"{pageId.ToString()}\") );\n";
+
+
 			response += $"\tvar labelTranslations = new List<WebVella.Erp.Web.Models.TranslationResource>();\n";
 			foreach (var res in node.LabelTranslations ?? new List<TranslationResource>())
 				response += $"\tlabelTranslations.Add( new WebVella.Erp.Web.Models.TranslationResource{{ Locale=\"{res.Locale}\", Key= \"{res.Key}\", Value= @\"{res.Value.EscapeMultiline()}\"  }} );\n";
 
-			response += "\n\tnew WebVella.Erp.Web.Services.AppService().CreateAreaNode(id,areaId,name,label,labelTranslations,iconClass,url,type,entityId,weight,access,WebVella.Erp.Database.DbContext.Current.Transaction);\n" +
+			response += "\n\tnew WebVella.Erp.Web.Services.AppService().CreateAreaNode(id,areaId,name,label,labelTranslations,iconClass,url,type,entityId,weight,access,entityListPages,entityCreatePages,entityDetailsPages,entityManagePages,WebVella.Erp.Database.DbContext.Current.Transaction,parentId);\n" +
 			"}\n" +
 			"#endregion\n\n";
 
@@ -7776,6 +7874,12 @@ $"#region << ***Update role*** Role name: {(string)currentRole["name"]} >>\n" +
 			{
 				response.HasUpdate = true;
 				response.ChangeList.Add($"<span class='go-green label-block'>sitemap node name</span>  from <span class='go-red'>{oldNode.Name}</span> to <span class='go-red'>{currentNode.Name}</span>");
+			}
+
+			if (currentNode.ParentId != oldNode.ParentId)
+			{
+				response.HasUpdate = true;
+				response.ChangeList.Add($"<span class='go-green label-block'>sitemap node parent</span>  from <span class='go-red'>{oldNode.ParentId}</span> to <span class='go-red'>{currentNode.ParentId}</span>");
 			}
 
 			if (currentNode.Label != oldNode.Label)
@@ -7834,6 +7938,111 @@ $"#region << ***Update role*** Role name: {(string)currentRole["name"]} >>\n" +
 				response.ChangeList.Add($"<span class='go-green label-block'>sitemap node access</span>  access role list changed</span>");
 			}
 
+			if (currentNode.EntityListPages.Count > 0 && oldNode.EntityListPages.Count > 0)
+			{
+				bool pageChanged = currentNode.EntityListPages.Count != oldNode.EntityListPages.Count;
+				if (!pageChanged)
+				{
+					foreach (Guid id in currentNode.EntityListPages)
+					{
+						if (!oldNode.EntityListPages.Any(x => x == id))
+						{
+							pageChanged = true;
+							break;
+						}
+					}
+				}
+				if (pageChanged)
+				{
+					response.ChangeList.Add($"<span class='go-green label-block'>sitemap node pages</span>  entity list array changed</span>");
+					response.HasUpdate = true;
+				}
+			}
+			else if (!(currentNode.EntityListPages.Count == 0 && oldNode.EntityListPages.Count == 0))
+			{
+				response.HasUpdate = true;
+				response.ChangeList.Add($"<span class='go-green label-block'>sitemap node pages</span>  entity list array changed</span>");
+			}
+
+			if (currentNode.EntityCreatePages.Count > 0 && oldNode.EntityCreatePages.Count > 0)
+			{
+				bool pageChanged = currentNode.EntityCreatePages.Count != oldNode.EntityCreatePages.Count;
+				if (!pageChanged)
+				{
+					foreach (Guid id in currentNode.EntityCreatePages)
+					{
+						if (!oldNode.EntityCreatePages.Any(x => x == id))
+						{
+							pageChanged = true;
+							break;
+						}
+					}
+				}
+				if (pageChanged)
+				{
+					response.ChangeList.Add($"<span class='go-green label-block'>sitemap node pages</span>  entity create array changed</span>");
+					response.HasUpdate = true;
+				}
+			}
+			else if (!(currentNode.EntityCreatePages.Count == 0 && oldNode.EntityCreatePages.Count == 0))
+			{
+				response.HasUpdate = true;
+				response.ChangeList.Add($"<span class='go-green label-block'>sitemap node pages</span>  entity create array changed</span>");
+			}
+
+
+			if (currentNode.EntityDetailsPages.Count > 0 && oldNode.EntityDetailsPages.Count > 0)
+			{
+				bool pageChanged = currentNode.EntityDetailsPages.Count != oldNode.EntityDetailsPages.Count;
+				if (!pageChanged)
+				{
+					foreach (Guid id in currentNode.EntityDetailsPages)
+					{
+						if (!oldNode.EntityDetailsPages.Any(x => x == id))
+						{
+							pageChanged = true;
+							break;
+						}
+					}
+				}
+				if (pageChanged)
+				{
+					response.ChangeList.Add($"<span class='go-green label-block'>sitemap node pages</span>  entity details array changed</span>");
+					response.HasUpdate = true;
+				}
+			}
+			else if (!(currentNode.EntityDetailsPages.Count == 0 && oldNode.EntityDetailsPages.Count == 0))
+			{
+				response.HasUpdate = true;
+				response.ChangeList.Add($"<span class='go-green label-block'>sitemap node pages</span>  entity details array changed</span>");
+			}
+
+			if (currentNode.EntityManagePages.Count > 0 && oldNode.EntityManagePages.Count > 0)
+			{
+				bool pageChanged = currentNode.EntityManagePages.Count != oldNode.EntityManagePages.Count;
+				if (!pageChanged)
+				{
+					foreach (Guid id in currentNode.EntityManagePages)
+					{
+						if (!oldNode.EntityManagePages.Any(x => x == id))
+						{
+							pageChanged = true;
+							break;
+						}
+					}
+				}
+				if (pageChanged)
+				{
+					response.ChangeList.Add($"<span class='go-green label-block'>sitemap node pages</span>  entity manage array changed</span>");
+					response.HasUpdate = true;
+				}
+			}
+			else if (!(currentNode.EntityManagePages.Count == 0 && oldNode.EntityManagePages.Count == 0))
+			{
+				response.HasUpdate = true;
+				response.ChangeList.Add($"<span class='go-green label-block'>sitemap node pages</span>  entity manage array changed</span>");
+			}
+
 			if (currentNode.LabelTranslations != null && oldNode.LabelTranslations != null)
 			{
 				bool translationChanged = currentNode.LabelTranslations.Count != oldNode.LabelTranslations.Count;
@@ -7865,6 +8074,7 @@ $"#region << ***Update role*** Role name: {(string)currentRole["name"]} >>\n" +
 				response.Code += $"#region << ***Update sitemap node*** Sitemap node name: {currentNode.Name} >>\n" +
 			"{\n" +
 				$"\tvar id = new Guid(\"{currentNode.Id.ToString()}\");\n" +
+				(currentNode.ParentId.HasValue ? $"\tvar parentId = new Guid(\"{currentNode.ParentId.ToString()}\");\n" : $"\tGuid? parentId = null;\n")	 +
 				$"\tvar areaId = new Guid(\"{areaId.ToString()}\");\n" +
 				(currentNode.EntityId.HasValue ? $"\tGuid? entityId = new Guid(\"{currentNode.EntityId}\");\n" : $"\tGuid? entityId = null;\n") +
 				$"\tvar name = \"{currentNode.Name}\";\n" +
@@ -7877,11 +8087,27 @@ $"#region << ***Update role*** Role name: {(string)currentRole["name"]} >>\n" +
 				foreach (Guid roleId in currentNode.Access)
 					response.Code += $"\taccess.Add( new Guid(\"{roleId.ToString()}\") );\n";
 
+				response.Code += $"\tvar entityListPages = new List<Guid>();\n";
+				foreach (Guid pageId in currentNode.EntityListPages)
+					response.Code += $"\tentityListPages.Add( new Guid(\"{pageId.ToString()}\") );\n";
+
+				response.Code += $"\tvar entityCreatePages = new List<Guid>();\n";
+				foreach (Guid pageId in currentNode.EntityCreatePages)
+					response.Code += $"\tentityCreatePages.Add( new Guid(\"{pageId.ToString()}\") );\n";
+
+				response.Code += $"\tvar entityDetailsPages = new List<Guid>();\n";
+				foreach (Guid pageId in currentNode.EntityDetailsPages)
+					response.Code += $"\tentityDetailsPages.Add( new Guid(\"{pageId.ToString()}\") );\n";
+
+				response.Code += $"\tvar entityManagePages = new List<Guid>();\n";
+				foreach (Guid pageId in currentNode.EntityManagePages)
+					response.Code += $"\tentityManagePages.Add( new Guid(\"{pageId.ToString()}\") );\n";
+
 				response.Code += $"\tvar labelTranslations = new List<WebVella.Erp.Web.Models.TranslationResource>();\n";
 				foreach (var res in currentNode.LabelTranslations ?? new List<TranslationResource>())
 					response.Code += $"\tlabelTranslations.Add( new WebVella.Erp.Web.Models.TranslationResource{{ Locale=\"{res.Locale}\", Key= \"{res.Key}\", Value= @\"{res.Value.EscapeMultiline()}\"  }} );\n";
 
-				response.Code += "\n\tnew WebVella.Erp.Web.Services.AppService().UpdateAreaNode(id,areaId,name,label,labelTranslations,iconClass,url,type,entityId,weight,access,WebVella.Erp.Database.DbContext.Current.Transaction);\n" +
+				response.Code += "\n\tnew WebVella.Erp.Web.Services.AppService().UpdateAreaNode(id,areaId,name,label,labelTranslations,iconClass,url,type,entityId,weight,access,entityListPages,entityCreatePages,entityDetailsPages,entityManagePages,WebVella.Erp.Database.DbContext.Current.Transaction,parentId);\n" +
 				"}\n" +
 				"#endregion\n\n";
 			}
@@ -8458,7 +8684,7 @@ $"#region << ***Update role*** Role name: {(string)currentRole["name"]} >>\n" +
 				$"\tvar dataSourceId = new Guid(\"{ds.DataSourceId.ToString()}\");\n" +
 				$"\tvar name = @\"{ds.Name}\";\n" +
 				$"\tvar parameters = @\"{parametersJson}\";\n" +
-				"\n\tnew WebVella.Erp.Web.Repositories.PageDataSourceRepository(ErpSettings.ConnectionString).Insert(id, pageId, dataSourceId,name,parameters,WebVella.Erp.Database.DbContext.Current.Transaction );\n" +
+				"\n\tnew WebVella.Erp.Web.Services.PageService(ErpSettings.ConnectionString).CreatePageDataSource(id, pageId, dataSourceId,name,parameters,WebVella.Erp.Database.DbContext.Current.Transaction );\n" +
 			"}\n" +
 			"#endregion\n\n";
 
@@ -8509,7 +8735,7 @@ $"#region << ***Update role*** Role name: {(string)currentRole["name"]} >>\n" +
 					$"\tvar dataSourceId = new Guid(\"{currentDS.DataSourceId.ToString()}\");\n" +
 					$"\tvar name = @\"{currentDS.Name}\";\n" +
 					$"\tvar parameters = @\"{currentParametersJson}\";\n" +
-					"\n\tnew WebVella.Erp.Web.Repositories.PageDataSourceRepository(ErpSettings.ConnectionString).Update(id, pageId, dataSourceId,name,parameters,WebVella.Erp.Database.DbContext.Current.Transaction );\n" +
+					"\n\tnew WebVella.Erp.Web.Services.PageService(ErpSettings.ConnectionString).UpdatePageDataSource(id, pageId, dataSourceId,name,parameters,WebVella.Erp.Database.DbContext.Current.Transaction );\n" +
 				"}\n" +
 				"#endregion\n\n";
 			}
@@ -8521,7 +8747,7 @@ $"#region << ***Update role*** Role name: {(string)currentRole["name"]} >>\n" +
 		{
 			return $"#region << ***Delete page data source *** Name: {ds.Name} >>\n" +
 					"{\n" +
-						$"\n\tnew WebVella.Erp.Web.Repositories.PageDataSourceRepository(ErpSettings.ConnectionString).Delete(new Guid(\"{ds.Id}\"),WebVella.Erp.Database.DbContext.Current.Transaction);\n" +
+						$"\n\tnew WebVella.Erp.Web.Services.PageService(ErpSettings.ConnectionString).DeletePageDataSource(new Guid(\"{ds.Id}\"),WebVella.Erp.Database.DbContext.Current.Transaction);\n" +
 					"}\n" +
 					"#endregion\n\n";
 		}
@@ -8619,6 +8845,34 @@ $"#region << ***Update role*** Role name: {(string)currentRole["name"]} >>\n" +
 				$"\tvar id = new Guid(\"{rec["id"]}\");\n" +
 				$"\tvar result = recMan.DeleteRecord(\"{currentEntity.Name}\", id);\n" +
 				$"\tif( !result ) throw new Exception(\"Failed delete record {rec["id"]}\");\n" +
+			"}\n" +
+			"#endregion\n\n";
+
+			return response;
+		}
+		#endregion
+
+		#region << Relation Records >>
+
+		private string CreateNNRelationRecordCode(EntityRelation relation, Guid originId, Guid targetId)
+		{
+
+			var response = $"#region << ***Create NN relation record*** Relation: {relation.Label} >>\n" +
+			"{\n" +
+				$"\tvar result = recMan.CreateRelationManyToManyRecord(new Guid(\"{relation.Id}\"), new Guid(\"{originId}\"), new Guid(\"{targetId}\"));\n" +
+				$"\tif( !result.Success ) throw new Exception(result.Message);\n" +
+			"}\n" +
+			"#endregion\n\n";
+
+			return response;
+		}
+
+		private string DeleteNNRelationRecordCode(EntityRelation relation, Guid originId, Guid targetId)
+		{
+			var response = $"#region << ***Delete NN relation record*** Relation: {relation.Label} >>\n" +
+			"{\n" +
+				$"\tvar result = recMan.RemoveRelationManyToManyRecord(new Guid(\"{relation.Id}\"), new Guid(\"{originId}\"), new Guid(\"{targetId}\"));\n" +
+				$"\tif( !result.Success ) throw new Exception(result.Message);\n" +
 			"}\n" +
 			"#endregion\n\n";
 

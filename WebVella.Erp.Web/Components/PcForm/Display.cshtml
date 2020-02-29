@@ -1,8 +1,9 @@
 ﻿@addTagHelper *, WebVella.Erp.Plugins.Core
 @addTagHelper *, WebVella.Erp.Web
+@addTagHelper *, WebVella.TagHelpers
+@using WebVella.Erp.Web.Utils;
 @using WebVella.Erp.Web.Components;
 @using WebVella.Erp.Web.Models;
-@using WebVella.Erp.Web.Utils;
 @using WebVella.Erp.Web;
 @using WebVella.Erp.Exceptions;
 @{
@@ -13,8 +14,12 @@
 	var validation = (ValidationException)ViewBag.Validation;
 	var action = (string)ViewBag.Action;
 }
-<wv-validation show-errors="false" validation="@validation"></wv-validation>
-<wv-form method="@options.Method" id="@options.Id" name="@options.Name" label-mode="@options.LabelMode" mode="@options.Mode" action="@action" validation="@validation">
+@if (options.ShowValidation)
+{
+<wv-validation message="@validation.Message" errors="@validation.ToErrorList()"></wv-validation>
+}
+<wv-form method="@options.Method" id="@options.Id" name="@options.Name" label-mode="@options.LabelMode" 
+	mode="@options.Mode" action="@action" validation-errors="@validation.ToErrorList()" class="@options.Class" is-visible="(bool)ViewBag.IsVisible">
 	@foreach (var childNode in node.Nodes) {
 		var nodeComponentName = "";
 		if (childNode != null) {

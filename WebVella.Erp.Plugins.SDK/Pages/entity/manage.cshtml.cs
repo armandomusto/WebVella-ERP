@@ -56,9 +56,6 @@ namespace WebVella.Erp.Plugins.SDK.Pages.ErpEntity
 
 		public void PageInit()
 		{
-			Init();
-
-
 			#region << Init Entity >>
 			var entMan = new EntityManager();
 			ErpEntity = entMan.ReadEntity(RecordId ?? Guid.Empty).Object;
@@ -136,7 +133,7 @@ namespace WebVella.Erp.Plugins.SDK.Pages.ErpEntity
 			HeaderActions.AddRange(new List<string>() {
 
 				PageUtils.GetActionTemplate(PageUtilsActionType.SubmitForm, label: "Save Entity",formId:"ManageRecord"),
-				PageUtils.GetActionTemplate(PageUtilsActionType.Cancel, returnUrl: ReturnUrl)
+				PageUtils.GetActionTemplate(PageUtilsActionType.Cancel, returnUrl: ReturnUrl,btnClass:"btn btn-sm btn-outline-secondary ml-1")
 			});
 
 			HeaderToolbar.AddRange(AdminPageUtils.GetEntityAdminSubNav(ErpEntity, "details"));
@@ -147,17 +144,27 @@ namespace WebVella.Erp.Plugins.SDK.Pages.ErpEntity
 
 		public IActionResult OnGet()
 		{
+			var initResult = Init();
+			if (initResult != null)
+				return initResult;
+
 			PageInit();
 			if (ErpEntity == null)
 				return NotFound();
 
 			ErpRequestContext.PageContext = PageContext;
+
+			BeforeRender();
 			return Page();
 		}
 
 		public IActionResult OnPost()
 		{
 			if (!ModelState.IsValid) throw new Exception("Antiforgery check failed.");
+
+			var initResult = Init();
+			if (initResult != null)
+				return initResult;
 
 			PageInit();
 
@@ -236,6 +243,8 @@ namespace WebVella.Erp.Plugins.SDK.Pages.ErpEntity
 			}
 
 			ErpRequestContext.PageContext = PageContext;
+
+			BeforeRender();
 			return Page();
 		}
 

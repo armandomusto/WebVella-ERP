@@ -51,8 +51,6 @@ namespace WebVella.Erp.Plugins.SDK.Pages.Application
 
 		private void InitPage()
 		{
-			Init();
-
 			#region << Init App >>
 			var appServ = new AppService();
 			App = appServ.GetApplication(RecordId ?? Guid.Empty);
@@ -86,7 +84,7 @@ namespace WebVella.Erp.Plugins.SDK.Pages.Application
 
 			#region << Actions >>
 			HeaderActions.AddRange(new List<string>() {
-				$"<button type='button' onclick='ErpEvent.DISPATCH(\"WebVella.Erp.Web.Components.PcForm\",\"submit\")' class='btn btn-blue btn-sm'><span class='ti-save go-white'></span> Save App</button>",
+				$"<button type='submit' form='ManageRecord' class='btn btn-blue btn-sm'><span class='fa fa-save go-white'></span> Save App</button>",
 				$"<a href='{ReturnUrl}' class='btn btn-white btn-sm'>Cancel</a>"
 			});
 
@@ -98,6 +96,10 @@ namespace WebVella.Erp.Plugins.SDK.Pages.Application
 
 		public IActionResult OnGet()
 		{
+			var initResult = Init();
+			if (initResult != null)
+				return initResult;
+
 			InitPage();
 
 			if (App == null)
@@ -106,12 +108,18 @@ namespace WebVella.Erp.Plugins.SDK.Pages.Application
 			}
 
 			ErpRequestContext.PageContext = PageContext;
+
+			BeforeRender();
 			return Page();
 		}
 
 		public IActionResult OnPost()
 		{
 			if (!ModelState.IsValid) throw new Exception("Antiforgery check failed.");
+
+			var initResult = Init();
+			if (initResult != null)
+				return initResult;
 
 			InitPage();
 
@@ -140,6 +148,8 @@ namespace WebVella.Erp.Plugins.SDK.Pages.Application
 			}
 
 			ErpRequestContext.PageContext = PageContext;
+
+			BeforeRender();
 			return Page();
 		}
 	}

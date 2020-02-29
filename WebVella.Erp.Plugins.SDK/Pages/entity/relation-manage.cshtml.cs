@@ -38,9 +38,6 @@ namespace WebVella.Erp.Plugins.SDK.Pages.ErpEntity
 
 		public void PageInit()
 		{
-			Init();
-
-
 			var entMan = new EntityManager();
 			var relMan = new EntityRelationManager();
 
@@ -68,6 +65,10 @@ namespace WebVella.Erp.Plugins.SDK.Pages.ErpEntity
 
 		public IActionResult OnGet()
 		{
+			var initResult = Init();
+			if (initResult != null)
+				return initResult;
+
 			PageInit();
 			if (Relation == null)
 				return NotFound();
@@ -77,11 +78,17 @@ namespace WebVella.Erp.Plugins.SDK.Pages.ErpEntity
 			IsSystem = Relation.System;
 
 			ErpRequestContext.PageContext = PageContext;
+
+			BeforeRender();
 			return Page();
 		}
 
 		public IActionResult OnPost()
 		{
+			var initResult = Init();
+			if (initResult != null)
+				return initResult;
+
 			PageInit();
 			if (Relation == null)
 				return NotFound();
@@ -129,6 +136,8 @@ namespace WebVella.Erp.Plugins.SDK.Pages.ErpEntity
 			}
 
 			ErpRequestContext.PageContext = PageContext;
+
+			BeforeRender();
 			return Page();
 		}
 

@@ -5,17 +5,20 @@ using System.Linq;
 using System.Threading.Tasks;
 using WebVella.Erp.Web.Hooks;
 using WebVella.Erp.Web.Models;
+using WebVella.Erp.Web.Services;
 
 namespace WebVella.Erp.Web.Components
 {
 
 	[RenderHookAttachment("head-bottom", 10)]
 	public class HeadBottomIncludes : ViewComponent
-    {
-        public async Task<IViewComponentResult> InvokeAsync(BaseErpPageModel pageModel)
-        {
+	{
+		public async Task<IViewComponentResult> InvokeAsync(BaseErpPageModel pageModel)
+		{
 			ViewBag.ScriptTags = new List<ScriptTagInclude>();
 			ViewBag.LinkTags = new List<LinkTagInclude>();
+
+			var cacheKey = new RenderService().GetCacheKey();
 
 			#region === <link> ===
 			{
@@ -27,13 +30,22 @@ namespace WebVella.Erp.Web.Components
 				#region << core plugin >>
 				{
 					//Always include
-					linkTagsToInclude.Add(new LinkTagInclude()
+					if(pageModel != null && pageModel.ErpAppContext != null && !String.IsNullOrEmpty(pageModel.ErpAppContext.StylesHash))
 					{
-						Href = "/api/v3.0/p/core/styles.css",
-						CacheBreaker = pageModel.ErpAppContext.StylesHash,
-						CrossOrigin = CrossOriginType.Anonymous,
-						Integrity = $"sha256-{pageModel.ErpAppContext.StylesHash}"
-					});
+						linkTagsToInclude.Add(new LinkTagInclude()
+						{
+							Href = "/api/v3.0/p/core/styles.css?cb=" + cacheKey,
+							CacheBreaker = pageModel.ErpAppContext.StylesHash,
+							CrossOrigin = CrossOriginType.Anonymous,
+							Integrity = $"sha256-{pageModel.ErpAppContext.StylesHash}"
+						});
+					}
+					else{
+						linkTagsToInclude.Add(new LinkTagInclude()
+						{
+							Href = "/api/v3.0/p/core/styles.css?cb=" + cacheKey
+						});	
+					}
 				}
 				#endregion
 
@@ -52,109 +64,13 @@ namespace WebVella.Erp.Web.Components
 
 				//Your includes below >>>>
 
-				#region << jquery >>
-				{
-					if (!includedScriptTags.Any(x => x.Src.Contains("/jquery")))
-					{
-						scriptTagsToInclude.Add(new ScriptTagInclude()
-						{
-							Src = "/lib/jquery/jquery.min.js"
-						});
-					}
-				}
-				#endregion
-
 				#region << site.js >>
 				{
 					//Always include
 					scriptTagsToInclude.Add(new ScriptTagInclude()
 					{
-						Src = "/js/site.js"
+						Src = "/_content/WebVella.Erp.Web/js/site.js?cb=" + cacheKey
 					});
-				}
-				#endregion
-
-				#region << bootstrap >>
-				{
-					if (!includedScriptTags.Any(x => x.Src.Contains("/bootstrap")))
-					{
-						scriptTagsToInclude.Add(new ScriptTagInclude()
-						{
-							Src = "/lib/twitter-bootstrap/js/bootstrap.bundle.min.js"
-						});
-					}
-				}
-				#endregion
-
-				#region << uri.js >>
-				{
-					if (!includedScriptTags.Any(x => x.Src.Contains("/uri")))
-					{
-						scriptTagsToInclude.Add(new ScriptTagInclude()
-						{
-							Src = "/lib/URI.js/URI.min.js"
-						});
-					}
-				}
-				#endregion
-
-				#region << moment >>
-				{
-					if (!includedScriptTags.Any(x => x.Src.Contains("/moment")))
-					{
-						scriptTagsToInclude.Add(new ScriptTagInclude()
-						{
-							Src = "/lib/moment.js/moment.min.js"
-						});
-					}
-				}
-				#endregion
-
-				#region << ckeditor >>
-				{
-					if (!includedScriptTags.Any(x => x.Src.Contains("/ckeditor")))
-					{
-						scriptTagsToInclude.Add(new ScriptTagInclude()
-						{
-							Src = "/lib/ckeditor/ckeditor.js"
-						});
-					}
-				}
-				#endregion
-
-				#region << lodash >>
-				{
-					if (!includedScriptTags.Any(x => x.Src.Contains("/lodash")))
-					{
-						scriptTagsToInclude.Add(new ScriptTagInclude()
-						{
-							Src = "/lib/lodash.js/lodash.min.js"
-						});
-					}
-				}
-				#endregion
-
-				#region << flatpickr >>
-				{
-					if (!includedScriptTags.Any(x => x.Src.Contains("/flatpickr")))
-					{
-						scriptTagsToInclude.Add(new ScriptTagInclude()
-						{
-							Src = "/lib/flatpickr/flatpickr.min.js"
-						});
-					}
-				}
-				#endregion
-
-				#region << select2 >>
-				{
-					if (!includedScriptTags.Any(x => x.Src.Contains("/select2")))
-					{
-						scriptTagsToInclude.Add(new ScriptTagInclude()
-						{
-							Src = "/lib/select2/js/select2.min.js"
-						});
-					}
 				}
 				#endregion
 
@@ -164,57 +80,34 @@ namespace WebVella.Erp.Web.Components
 					{
 						scriptTagsToInclude.Add(new ScriptTagInclude()
 						{
-							Src = "/lib/js-cookie/js.cookie.min.js"
+							Src = "/_content/WebVella.Erp.Web/lib/js-cookie/js.cookie.min.js?cb=" + cacheKey
 						});
 					}
 				}
 				#endregion
 
-				#region << decimal >>
-				{
-					if (!includedScriptTags.Any(x => x.Src.Contains("/decimal")))
-					{
-						scriptTagsToInclude.Add(new ScriptTagInclude()
-						{
-							Src = "/lib/decimal.js/decimal.min.js"
-						});
-					}
-				}
-				#endregion
 
-				#region << toastr >>
-				{
-					if (!includedScriptTags.Any(x => x.Src.Contains("/toastr")))
-					{
-						scriptTagsToInclude.Add(new ScriptTagInclude()
-						{
-							Src = "/lib/toastr.js/toastr.min.js"
-						});
-					}
-				}
-				#endregion
+				//var stencilComponents = new List<string>(){"wv-lazyload", "wv-timelog-list", "wv-pb-manager", 
+				//	"wv-sitemap-manager", "wv-datasource-manage","wv-post-list", "wv-feed-list", "wv-recurrence-template"};
 
-				#region << colorpicker >>
-				{
-					if (!includedScriptTags.Any(x => x.Src.Contains("/colorpicker")))
-					{
-						scriptTagsToInclude.Add(new ScriptTagInclude()
-						{
-							Src = "/lib/spectrum/spectrum.min.js"
-						});
-					}
-				}
-				#endregion
+				var stencilComponents = new List<string>(){"wv-lazyload"};
 
-				#region << wv-lazyload >>
+				foreach (var componentName in stencilComponents)
 				{
-					//Always add
 					scriptTagsToInclude.Add(new ScriptTagInclude()
 					{
-						Src = "/js/wv-lazyload/wv-lazyload.js"
+						Src = $"/_content/WebVella.Erp.Web/js/{componentName}/{componentName}.esm.js",
+						Type = "module"
+					});
+
+					scriptTagsToInclude.Add(new ScriptTagInclude()
+					{
+						Src = $"/_content/WebVella.Erp.Web/js/{componentName}/{componentName}.js",
+						IsNomodule = true
 					});
 				}
-				#endregion
+
+
 
 				//<<<< Your includes up
 
@@ -225,6 +118,6 @@ namespace WebVella.Erp.Web.Components
 			#endregion
 
 			return await Task.FromResult<IViewComponentResult>(View("Default"));
-        }
-    }
+		}
+	}
 }

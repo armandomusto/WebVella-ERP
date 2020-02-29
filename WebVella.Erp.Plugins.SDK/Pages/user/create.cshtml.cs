@@ -47,7 +47,6 @@ namespace WebVella.Erp.Plugins.SDK.Pages.User
 
 		private void InitPage()
 		{
-			Init();
 			var roles = new EqlCommand("select * from role").Execute();
 			foreach (var role in roles)
 			{
@@ -64,13 +63,22 @@ namespace WebVella.Erp.Plugins.SDK.Pages.User
 
 		public IActionResult OnGet()
 		{
+			var initResult = Init();
+			if (initResult != null)
+				return initResult;
+
 			InitPage();
+			BeforeRender();
 			return Page();
 		}
 
 		public IActionResult OnPost()
 		{
 			if (!ModelState.IsValid) throw new Exception("Antiforgery check failed.");
+
+			var initResult = Init();
+			if (initResult != null)
+				return initResult;
 
 			InitPage();
 
@@ -96,19 +104,21 @@ namespace WebVella.Erp.Plugins.SDK.Pages.User
 					newUser.Roles.Add(role);
 				}
 				secMan.SaveUser(newUser);
-				
+				BeforeRender();
 				return Redirect(ReturnUrl);
 			}
 			catch (ValidationException ex)
 			{
 				Validation.Message = ex.Message;
 				Validation.Errors = ex.Errors;
+				BeforeRender();
 				return Page();
 			}
 			catch (Exception ex)
 			{
 				Validation.Message = ex.Message;
 				Validation.Errors.Add(new ValidationError("", ex.Message, isSystem: true));
+				BeforeRender();
 				return Page();
 			}
 		}

@@ -26,6 +26,7 @@ namespace WebVella.Erp.Web.Models.AutoMapper.Profiles
 
 			SitemapNode model = new SitemapNode();
 			model.Id = new Guid(data["id"].ToString());
+			model.ParentId = (data["parent_id"] != null && data["parent_id"].Value<string>() != null) ? new Guid(data["parent_id"].Value<string>()) : (Guid?)null;
 			model.Name = (string)data["name"];
 			model.Label = (string)data["label"];
 			model.Url = (string)data["url"];
@@ -48,7 +49,36 @@ namespace WebVella.Erp.Web.Models.AutoMapper.Profiles
 					model.Access.Add(new Guid(rId.ToString()));
 			}
 
-			return model;
+            model.EntityListPages = new List<Guid>();
+            if (data["entity_list_pages"] != null)
+            {
+                foreach (var rId in data["entity_list_pages"].AsJEnumerable())
+                    model.EntityListPages.Add(new Guid(rId.ToString()));
+            }
+
+            model.EntityCreatePages = new List<Guid>();
+            if (data["entity_create_pages"] != null)
+            {
+                foreach (var rId in data["entity_create_pages"].AsJEnumerable())
+                    model.EntityCreatePages.Add(new Guid(rId.ToString()));
+            }
+
+            model.EntityDetailsPages = new List<Guid>();
+            if (data["entity_details_pages"] != null)
+            {
+                foreach (var rId in data["entity_details_pages"].AsJEnumerable())
+                    model.EntityDetailsPages.Add(new Guid(rId.ToString()));
+            }
+
+            model.EntityManagePages = new List<Guid>();
+            if (data["entity_manage_pages"] != null)
+            {
+                foreach (var rId in data["entity_manage_pages"].AsJEnumerable())
+                    model.EntityManagePages.Add(new Guid(rId.ToString()));
+            }
+
+
+            return model;
 		}
 
 		private static SitemapNode DataRowToSitemapNodeConvert(DataRow data)
@@ -58,6 +88,7 @@ namespace WebVella.Erp.Web.Models.AutoMapper.Profiles
 
 			SitemapNode model = new SitemapNode();
 			model.Id = new Guid(data["id"].ToString());
+			model.ParentId = data["parent_id"] != DBNull.Value ? new Guid(data["parent_id"].ToString()) : (Guid?)null;
 			model.Name = (string)data["name"];
 			model.Label = (string)data["label"];
 			model.Url = (string)data["url"];
@@ -79,7 +110,31 @@ namespace WebVella.Erp.Web.Models.AutoMapper.Profiles
 				model.Access.AddRange((Guid[])data["access_roles"]);
 			}
 
-			return model;
+            model.EntityListPages = new List<Guid>();
+            if (data["entity_list_pages"] != null)
+            {
+                model.EntityListPages.AddRange((Guid[])data["entity_list_pages"]);
+            }
+
+            model.EntityCreatePages = new List<Guid>();
+            if (data["entity_create_pages"] != null)
+            {
+                model.EntityCreatePages.AddRange((Guid[])data["entity_create_pages"]);
+            }
+
+            model.EntityDetailsPages = new List<Guid>();
+            if (data["entity_details_pages"] != null)
+            {
+                model.EntityDetailsPages.AddRange((Guid[])data["entity_details_pages"]);
+            }
+
+            model.EntityManagePages = new List<Guid>();
+            if (data["entity_manage_pages"] != null)
+            {
+                model.EntityManagePages.AddRange((Guid[])data["entity_manage_pages"]);
+            }
+
+            return model;
 		}
 	}
 }

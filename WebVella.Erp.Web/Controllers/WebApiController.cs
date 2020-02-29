@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Authorization;
+﻿using CsvHelper;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.StaticFiles;
@@ -12,9 +13,11 @@ using SixLabors.ImageSharp.Processing;
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Net;
+using System.Text;
 using WebVella.Erp.Api;
 using WebVella.Erp.Api.Models;
 using WebVella.Erp.Api.Models.AutoMapper;
@@ -55,7 +58,7 @@ namespace WebVella.Erp.Web.Controllers
 
 		[Route("api/v3/en_US/eql")]
 		[HttpPost]
-		public ActionResult DataSourceAction([FromBody]EqlQuery model)
+		public ActionResult EqlQueryAction([FromBody]EqlQuery model)
 		{
 			ResponseModel response = new ResponseModel();
 			response.Success = true;
@@ -71,7 +74,8 @@ namespace WebVella.Erp.Web.Controllers
 			catch (EqlException eqlEx)
 			{
 				response.Success = false;
-				foreach (var eqlError in eqlEx.Errors) {
+				foreach (var eqlError in eqlEx.Errors)
+				{
 					response.Errors.Add(new ErrorModel("eql", "", eqlError.Message));
 				}
 				return Json(response);
@@ -84,6 +88,242 @@ namespace WebVella.Erp.Web.Controllers
 			}
 
 			return Json(response);
+		}
+
+		[Route("api/v3/en_US/eql-ds")]
+		[HttpPost]
+		public ActionResult DataSourceQueryAction([FromBody]JObject submitObj)
+		{
+			ResponseModel response = new ResponseModel();
+			response.Success = true;
+
+
+			if (submitObj == null)
+				return NotFound();
+
+			EqlDataSourceQuery model = new EqlDataSourceQuery();
+
+			#region << Init SubmitObj >>
+			foreach (var prop in submitObj.Properties())
+			{
+				switch (prop.Name.ToLower())
+				{
+					case "name":
+						if (!string.IsNullOrWhiteSpace(prop.Value.ToString()))
+							model.Name = prop.Value.ToString();
+						else
+						{
+							throw new Exception("DataSource Name is required");
+						}
+						break;
+					case "parameters":
+						var jParams = (JArray)prop.Value;
+						model.Parameters = new List<EqlParameter>();
+						foreach (JObject jParam in jParams)
+						{
+							var name = jParam["name"].ToString();
+							var value = jParam["value"].ToString();
+							var eqlParam = new EqlParameter(name, value);
+							model.Parameters.Add(eqlParam);
+						}
+						break;
+				}
+			}
+			#endregion
+
+
+			try
+			{
+				DataSourceManager dsMan = new DataSourceManager();
+				var dataSources = dsMan.GetAll();
+				var ds = dataSources.SingleOrDefault(x => x.Name == model.Name);
+				if (ds == null)
+				{
+					response.Success = false;
+					response.Message = $"DataSource with name '{model.Name}' not found.";
+					return Json(response);
+				}
+
+				if (ds is DatabaseDataSource)
+				{
+					var list = (EntityRecordList)dsMan.Execute(ds.Id, model.Parameters);
+					response.Object = new { list, total_count = list.TotalCount };
+				}
+				else if (ds is CodeDataSource)
+				{
+					Dictionary<string, object> arguments = new Dictionary<string, object>();
+					foreach (var par in model.Parameters)
+						arguments[par.ParameterName] = par.Value;
+
+					response.Object = ((CodeDataSource)ds).Execute(arguments);
+				}
+				else
+				{
+					response.Success = false;
+					response.Message = $"DataSource type is not supported.";
+					return Json(response);
+				}
+			}
+			catch (EqlException eqlEx)
+			{
+				response.Success = false;
+				foreach (var eqlError in eqlEx.Errors)
+				{
+					response.Errors.Add(new ErrorModel("eql", "", eqlError.Message));
+				}
+				return Json(response);
+			}
+			catch (Exception ex)
+			{
+				response.Success = false;
+				response.Message = ex.Message;
+				return Json(response);
+			}
+
+			return Json(response);
+		}
+
+		[Route("api/v3/en_US/eql-ds-select2")]
+		[HttpPost]
+		public ActionResult DataSourceQueryActionForSelect2([FromBody]JObject submitObj)
+		{
+			if (submitObj == null)
+				return NotFound();
+
+			var result = new EntityRecord();
+			result["results"] = new List<EntityRecord>();
+			result["pagination"] = new EntityRecord();
+
+			EqlDataSourceQuery model = new EqlDataSourceQuery();
+
+			#region << Init SubmitObj >>
+			foreach (var prop in submitObj.Properties())
+			{
+				switch (prop.Name.ToLower())
+				{
+					case "name":
+						if (!string.IsNullOrWhiteSpace(prop.Value.ToString()))
+							model.Name = prop.Value.ToString();
+						else
+						{
+							throw new Exception("DataSource Name is required");
+						}
+						break;
+					case "parameters":
+						var jParams = (JArray)prop.Value;
+						model.Parameters = new List<EqlParameter>();
+						foreach (JObject jParam in jParams)
+						{
+							var name = jParam["name"].ToString();
+							var value = jParam["value"].ToString();
+							var eqlParam = new EqlParameter(name, value);
+							model.Parameters.Add(eqlParam);
+						}
+						break;
+				}
+			}
+			#endregion
+			var page = 1;
+			if (model.Parameters.Count > 0)
+			{
+				var pageParam = model.Parameters.FirstOrDefault(x => x.ParameterName == "page");
+				if (pageParam != null)
+				{
+					if (int.TryParse(pageParam.Value?.ToString(), out int outInt))
+					{
+						page = outInt;
+					}
+				}
+			}
+			var records = new List<EntityRecord>();
+			int? total = 0;
+			try
+			{
+				DataSourceManager dsMan = new DataSourceManager();
+				var dataSources = dsMan.GetAll();
+				var ds = dataSources.SingleOrDefault(x => x.Name == model.Name);
+				if (ds == null)
+				{
+					return BadRequest();
+				}
+
+				if (ds is DatabaseDataSource)
+				{
+					var list = (EntityRecordList)dsMan.Execute(ds.Id, model.Parameters);
+					records = (List<EntityRecord>)list;
+					total = list.TotalCount;
+				}
+				else if (ds is CodeDataSource)
+				{
+					Dictionary<string, object> arguments = new Dictionary<string, object>();
+					foreach (var par in model.Parameters)
+						arguments[par.ParameterName] = par.Value;
+
+					var dsResult = ((CodeDataSource)ds).Execute(arguments);
+					if (dsResult is EntityRecordList)
+					{
+
+						records = (List<EntityRecord>)((EntityRecordList)dsResult);
+						total = ((EntityRecordList)dsResult).TotalCount;
+					}
+					else if (dsResult is List<EntityRecord>)
+					{
+						records = (List<EntityRecord>)dsResult;
+						total = null;
+					}
+					else
+					{
+						return Json(dsResult);
+					}
+				}
+				else
+				{
+					return BadRequest();
+				}
+			}
+			catch
+			{
+				return BadRequest();
+			}
+
+			//Post process records according to requiredments {id,text}
+			var processedRecords = new List<EntityRecord>();
+			foreach (var record in records)
+			{
+				var procRec = new EntityRecord();
+				if(record.Properties.ContainsKey("id")){
+					procRec["id"] = record["id"].ToString();
+				}
+				else{
+					procRec["id"] = "no-id-" + Guid.NewGuid();
+				}
+				if(record.Properties.ContainsKey("text")){
+					procRec["text"] = record["text"].ToString();
+				}
+				else if(record.Properties.ContainsKey("label")){
+					procRec["text"] = record["label"].ToString();
+				}
+				else if(record.Properties.ContainsKey("name")){
+					procRec["text"] = record["name"].ToString();
+				}
+				else{
+					procRec["text"] = procRec["id"].ToString();
+				}
+				processedRecords.Add(procRec);
+			}
+			var moreRecord = new EntityRecord();
+			moreRecord["more"] = false;
+			if (records.Count > 0)
+			{
+				if (total > page * 10)
+				{
+					moreRecord["more"] = true;
+				}
+				result["results"] = processedRecords;
+			}
+
+			result["pagination"] = moreRecord;
+			return Json(result);
 		}
 
 
@@ -115,7 +355,125 @@ namespace WebVella.Erp.Web.Controllers
 				response.Message = "success";
 				return Json(response);
 			}
-			catch (Exception ex) {
+			catch (Exception ex)
+			{
+				response.Success = false;
+				response.Message = ex.Message;
+				new Log().Create(LogType.Error, "ToggleSidebarSize API Method Error", ex);
+				return Json(response);
+			}
+		}
+
+		[Route("api/v3.0/user/preferences/toggle-section-collapse")]
+		[HttpPost]
+		public ActionResult ToggleSection(Guid? nodeId = null, bool isCollapsed = false)
+		{
+			var response = new BaseResponseModel();
+			try
+			{
+				if (nodeId == null)
+					throw new Exception("nodeId query param is required");
+
+				var userPreferencesService = new UserPreferencies();
+
+				var currentUser = AuthService.GetUser(User);
+
+				EntityRecord componentData = userPreferencesService.GetComponentData(currentUser.Id, "WebVella.Erp.Web.Components.PcSection");
+
+				var collapsedNodeIds = new List<Guid>();
+				var uncollapsedNodeIds = new List<Guid>();
+
+				if (componentData == null)
+				{
+					componentData = new EntityRecord();
+					componentData["collapsed_node_ids"] = new List<Guid>();
+					componentData["uncollapsed_node_ids"] = new List<Guid>();
+				}
+				else
+				{
+					if (componentData.Properties.ContainsKey("collapsed_node_ids") && componentData["collapsed_node_ids"] != null)
+					{
+						if (componentData["collapsed_node_ids"] is string)
+						{
+							try
+							{
+								collapsedNodeIds = JsonConvert.DeserializeObject<List<Guid>>((string)componentData["collapsed_node_ids"]);
+							}
+							catch
+							{
+								throw new Exception("WebVella.Erp.Web.Components.PcSection component data object in user preferences not in the correct format. collapsed_node_ids should be List<Guid>");
+							}
+						}
+						else if (componentData["collapsed_node_ids"] is List<Guid>)
+						{
+							collapsedNodeIds = (List<Guid>)componentData["collapsed_node_ids"];
+						}
+						else if (componentData["collapsed_node_ids"] is JArray)
+						{
+							collapsedNodeIds = ((JArray)componentData["collapsed_node_ids"]).ToObject<List<Guid>>();
+						}
+						else
+						{
+							throw new Exception("Unknown format of collapsed_node_ids");
+						}
+					}
+					if (componentData.Properties.ContainsKey("uncollapsed_node_ids") && componentData["uncollapsed_node_ids"] != null)
+					{
+						if (componentData["uncollapsed_node_ids"] is string)
+						{
+							try
+							{
+								uncollapsedNodeIds = JsonConvert.DeserializeObject<List<Guid>>((string)componentData["uncollapsed_node_ids"]);
+							}
+							catch
+							{
+								throw new Exception("WebVella.Erp.Web.Components.PcSection component data object in user preferences not in the correct format. uncollapsed_node_ids should be List<Guid>");
+							}
+						}
+						else if (componentData["uncollapsed_node_ids"] is List<Guid>)
+						{
+							uncollapsedNodeIds = (List<Guid>)componentData["uncollapsed_node_ids"];
+						}
+						else if (componentData["uncollapsed_node_ids"] is JArray)
+						{
+							uncollapsedNodeIds = ((JArray)componentData["uncollapsed_node_ids"]).ToObject<List<Guid>>();
+						}
+						else
+						{
+							throw new Exception("Unknown format of uncollapsed_node_ids");
+						}
+					}
+				}
+
+				if (isCollapsed)
+				{
+					//new state is collapsed
+					//1. remove if it is in uncollapsed
+					uncollapsedNodeIds = uncollapsedNodeIds.FindAll(x => x != nodeId.Value).ToList();
+					//2. add to collapsed
+					if (!collapsedNodeIds.Contains(nodeId.Value))
+						collapsedNodeIds.Add(nodeId.Value);
+				}
+				else
+				{
+					//new state is uncollapsed
+					//1. remove it is in collapsed
+					collapsedNodeIds = collapsedNodeIds.FindAll(x => x != nodeId.Value).ToList();
+					//2. add to uncollapsed
+					if (!uncollapsedNodeIds.Contains(nodeId.Value))
+						uncollapsedNodeIds.Add(nodeId.Value);
+				}
+
+				componentData["collapsed_node_ids"] = collapsedNodeIds;
+				componentData["uncollapsed_node_ids"] = uncollapsedNodeIds;
+
+				userPreferencesService.SetComponentData(currentUser.Id, "WebVella.Erp.Web.Components.PcSection", componentData);
+				response.Success = true;
+				response.Message = "success";
+				return Json(response);
+			}
+			catch (Exception ex)
+			{
 				response.Success = false;
 				response.Message = ex.Message;
 				new Log().Create(LogType.Error, "ToggleSidebarSize API Method Error", ex);
@@ -260,7 +618,7 @@ namespace WebVella.Erp.Web.Controllers
 					newNode.ComponentName, newNode.ContainerId, newNode.Options);
 
 				var createdNode = pageSrv.GetPageNodeById(newNode.Id);
-				
+
 				var currentUser = AuthService.GetUser(User);
 				new UserPreferencies().SdkUseComponent(currentUser.Id, newNode.ComponentName);
 
@@ -463,10 +821,10 @@ namespace WebVella.Erp.Web.Controllers
 					return NotFound();
 
 				//if (nid == null)
-				//	return BadRequest("The node Id is required to be set as query param 'nid', when requesting this component");
+				//	return BadRequest("The node Id is required to be set as query parameter 'nid', when requesting this component");
 
 				if (pid == null)
-					return BadRequest("The page Id is required to be set as query param 'pid', when requesting this component");
+					return BadRequest("The page Id is required to be set as query parameter 'pid', when requesting this component");
 
 				var type = FileService.GetType(fullComponentName);
 				if (type == null)
@@ -602,6 +960,7 @@ namespace WebVella.Erp.Web.Controllers
 						var pcContextDesign = new PageComponentContext(pagebodyNode, pageModel, ComponentMode.Design, options);
 						return ViewComponent(type, new { context = pcContextDesign });
 					case "options":
+						pageModel.SafeCodeDataVariable = true;
 						var pcContextOptions = new PageComponentContext(pagebodyNode, pageModel, ComponentMode.Options, options);
 						return ViewComponent(type, new { context = pcContextOptions });
 					case "help":
@@ -684,11 +1043,58 @@ namespace WebVella.Erp.Web.Controllers
 				cssContent = ErpAppContext.Current.StylesContent;
 				return Content(cssContent, "text/css");
 			}
-			catch (Exception ex) {
+			catch (Exception ex)
+			{
 				new Log().Create(LogType.Error, "StylesCss API Method Error", ex);
 				throw ex;
 			}
 		}
+
+
+		//[Route("api/v3.0/p/core/select/font-awesome-icons")]
+		//[HttpGet]
+		//public ActionResult GetSelectCases([FromQuery]string search,[FromQuery]int page = 1)
+		//{
+		//	var pageSize = 10;
+		//	var response = new ResponseModel();
+		//	response.Timestamp = DateTime.UtcNow;
+		//	try
+		//	{
+		//		var icons = RenderService.FontAwesomeIcons;
+		//		var iconTotal = icons.Count();
+		//		if(!String.IsNullOrWhiteSpace(search)){
+		//			var filteredIcons = icons.FindAll(x=> x.Class.Contains(search) || x.Name.Contains(search)).ToList();
+		//			iconTotal = filteredIcons.Count();
+		//			icons = filteredIcons.Skip((page-1)*pageSize).Take(pageSize).ToList();
+		//		}
+		//		else{
+		//			icons = icons.Skip((page-1)*pageSize).Take(pageSize).ToList();
+		//		}
+		//		var result = new EntityRecord();
+
+		//		result["results"] = icons;
+		//		result["pagination"] = new EntityRecord(); // more => true, false
+		//		var moreRecord = new EntityRecord();
+		//		moreRecord["more"] = false;
+
+		//		if(iconTotal > page*pageSize){
+		//			moreRecord["more"] = true;
+		//		}
+
+		//		result["pagination"] = moreRecord;
+
+
+		//		response.Object = result;
+		//		response.Success = true;
+		//		response.Message = "";
+		//	}
+		//	catch (Exception ex)
+		//	{
+		//		response.Success = false;
+		//		response.Message = ex.Message;
+		//	}
+		//	return Json(response);
+		//}
 
 		//[AllowAnonymous]
 		//[Route("api/v3.0/p/core/framework.css")]
@@ -714,6 +1120,9 @@ namespace WebVella.Erp.Web.Controllers
 		//		throw ex;
 		//	}
 		//}
+
+
+		#region << UI component support >>
 
 		[Produces("application/json")]
 		[Route("api/v3.0/p/core/related-field-multiselect")]
@@ -916,11 +1325,105 @@ namespace WebVella.Erp.Web.Controllers
 			return new JsonResult(response);
 		}
 
+		[Produces("text/html")]
+		[Route("api/v3.0/{lang}/p/core/ui/field-table-data/generate/preview")]
+		[AcceptVerbs("POST")]
+		[ResponseCache(NoStore = true, Duration = 0)]
+		public IActionResult FieldTableDataPreview([FromRoute] string lang, [FromBody]JObject submitObj)
+		{
+			var hasHeader = true;
+			var hasHeaderColumn = false;
+			string csvData = "";
+			string delimiterName = "";
+			#region << Init SubmitObj >>
+			foreach (var prop in submitObj.Properties())
+			{
+				switch (prop.Name.ToLower())
+				{
+					case "hasheader":
+						if (!string.IsNullOrWhiteSpace(prop.Value.ToString()))
+						{
+							var hasHeaderString = prop.Value.ToString();
+							if (hasHeaderString.ToLowerInvariant() == "false")
+							{
+								hasHeader = false;
+							}
+						}
+						break;
+					case "hasheadercolumn":
+						if (!string.IsNullOrWhiteSpace(prop.Value.ToString()))
+						{
+							var hasHeaderColumnString = prop.Value.ToString();
+							if (hasHeaderColumnString.ToLowerInvariant() == "true")
+							{
+								hasHeaderColumn = true;
+							}
+						}
+						break;
+					case "csv":
+						if (!string.IsNullOrWhiteSpace(prop.Value.ToString()))
+						{
+							csvData = prop.Value.ToString();
+						}
+						break;
+					case "delimiter":
+						if (!string.IsNullOrWhiteSpace(prop.Value.ToString()))
+						{
+							delimiterName = prop.Value.ToString(); //Does not work if first checked for empty string
+						}
+						break;
+				}
+			}
+
+			var records = new List<dynamic>();
+			try
+			{
+				records = WebVella.TagHelpers.Utilities.WvHelpers.GetCsvData(csvData, hasHeader, delimiterName);
+			}
+			//catch (CsvHelperException ex)
+			//{
+			//	//ex.Data.Values has more info...
+
+			//	if (lang == "bg")
+			//	{
+			//		return Content("<div class='alert alert-danger p-2'>Грешен формат на данните. Опитайте с друг разделител.</div>");
+			//	}
+			//	else
+			//	{
+			//		return Content("<div class='alert alert-danger p-2'>Error in parsing data. Check another delimiter</div>");
+			//	}
+			//}
+			catch
+			{
+				if (lang == "bg")
+				{
+					return Content("<div class='alert alert-danger p-2'>Грешен формат на данните. Опитайте с друг разделител.</div>");
+				}
+				else
+				{
+					return Content("<div class='alert alert-danger p-2'>Error in parsing data. Check another delimiter</div>");
+				}
+			}
+
+			#endregion
+
+			var result = new EntityRecord();
+			result["hasHeader"] = hasHeader;
+			result["hasHeaderColumn"] = hasHeaderColumn;
+			result["data"] = records;
+			result["lang"] = lang;
+			return PartialView("FieldTableDataPreview", result);
+		}
+
+
+
+		#endregion
+
 		#region << Entity Meta >>
 
 		// Get all entity definitions
 		// GET: api/v3/en_US/meta/entity/list/
-		[Authorize(Roles ="administrator")]
+		[Authorize(Roles = "administrator")]
 		[AcceptVerbs(new[] { "GET" }, Route = "api/v3/en_US/meta/entity/list")]
 		[ResponseCache(NoStore = true, Duration = 0)]
 		public IActionResult GetEntityMetaList(string hash = null)
@@ -2722,33 +3225,45 @@ namespace WebVella.Erp.Web.Controllers
 		#region << Files >>
 
 		[HttpGet]
-		[Route("/fs/{*filepath}")]
-		public IActionResult Download([FromRoute] string filepath)
+		[Route("/fs/{fileName}")]
+		[Route("/fs/{root}/{fileName}")]
+		[Route("/fs/{root}/{root2}/{fileName}")]
+		[Route("/fs/{root}/{root2}/{root3}/{fileName}")]
+		[Route("/fs/{root}/{root2}/{root3}/{root4}/{fileName}")]
+		public IActionResult Download([FromRoute] string root, [FromRoute] string root2, [FromRoute] string root3, [FromRoute] string root4, [FromRoute] string fileName)
 		{
-			//TODO  authorize
-			if (string.IsNullOrWhiteSpace(filepath))
+			//we added ROOT routing parameter as workaround for conflict with razorpages routing and wildcard controller routing
+			//in particular we have problem with ApplicationNodePage where routing pattern is  "/{AppName}/{AreaName}/{NodeName}/a/{PageName?}"
+
+			if (string.IsNullOrWhiteSpace(fileName))
 				return DoPageNotFoundResponse();
 
-			if (!filepath.StartsWith("/"))
-				filepath = "/" + filepath;
+			var filePathArray = new List<string>();
+			if (root != null) filePathArray.Add(root);
+			if (root2 != null) filePathArray.Add(root2);
+			if (root3 != null) filePathArray.Add(root3);
+			if (root4 != null) filePathArray.Add(root4);
 
-			filepath = filepath.ToLowerInvariant();
+			var filePath = "/" + String.Join("/", filePathArray) + "/" + fileName;
+
+			filePath = filePath.ToLowerInvariant();
 
 			DbFileRepository fsRepository = new DbFileRepository();
-			var file = fsRepository.Find(filepath);
+			var file = fsRepository.Find(filePath);
 
 			if (file == null)
 			{
 
-#if DEBUG
-				//Hardcoded image for development
-				WebClient wc = new WebClient();
-				byte[] bytes = wc.DownloadData($"{HttpContext.Request.Scheme}://{HttpContext.Request.Host}/assets/missing-image.png");
+				if (ErpSettings.DevelopmentMode)
+				{
+					//Hardcoded image for development
+					WebClient wc = new WebClient();
+					byte[] bytes = wc.DownloadData($"{HttpContext.Request.Scheme}://{HttpContext.Request.Host}/_content/WebVella.Erp.Web/assets/missing-image.png");
 
-				return File(bytes, "image/png");
-#else
-				return DoPageNotFoundResponse();
-#endif
+					return File(bytes, "image/png");
+				}
+				else
+					return DoPageNotFoundResponse();
 			}
 			//check for modification
 			string headerModifiedSince = Request.Headers["If-Modified-Since"];
@@ -2768,7 +3283,7 @@ namespace WebVella.Erp.Web.Controllers
 			const int durationInSeconds = 60 * 60 * 24 * 30; //30 days caching of these resources
 			HttpContext.Response.Headers[HeaderNames.CacheControl] = "public,max-age=" + durationInSeconds;
 
-			var extension = Path.GetExtension(filepath).ToLowerInvariant();
+			var extension = Path.GetExtension(filePath).ToLowerInvariant();
 			new FileExtensionContentTypeProvider().Mappings.TryGetValue(extension, out string mimeType);
 
 
@@ -2779,8 +3294,22 @@ namespace WebVella.Erp.Web.Controllers
 			string height = queryCollection.Keys.Any(x => x == "height") ? ((string)queryCollection["height"]).ToLowerInvariant() : "";
 			bool isImage = extension == ".jpg" || extension == ".jpeg" || extension == ".png" || extension == ".gif";
 
-			if (isImage && (!string.IsNullOrWhiteSpace(action) || !string.IsNullOrWhiteSpace(requestedMode) || !string.IsNullOrWhiteSpace(width) || !string.IsNullOrWhiteSpace(height)))
+			int widthInt = 0;
+			if (!String.IsNullOrWhiteSpace(width) && int.TryParse(width, out int outWidthInt))
 			{
+				widthInt = outWidthInt;
+			}
+			int heightInt = 0;
+			if (!String.IsNullOrWhiteSpace(height) && int.TryParse(height, out int outHeightInt))
+			{
+				heightInt = outHeightInt;
+			}
+
+			if (isImage && (widthInt > 0 || heightInt > 0))
+			{
+				if (string.IsNullOrWhiteSpace(action))
+					action = "resize";
+
 				var fileContent = file.GetBytes();
 				using (Image<Rgba32> image = SixLabors.ImageSharp.Image.Load(fileContent))
 				{
@@ -2831,7 +3360,7 @@ namespace WebVella.Erp.Web.Controllers
 									Size = new SixLabors.Primitives.Size(size.Width, size.Height)
 								};
 								image.Mutate(x => x.Resize(resizeOptions).BackgroundColor(Rgba32.White));
-								image.Save(outStream, ImageFormats.Jpeg);
+								image.SaveAsJpeg(outStream);
 								outStream.Seek(0, SeekOrigin.Begin);
 								return File(outStream, mimeType);
 							}
@@ -3590,6 +4119,233 @@ namespace WebVella.Erp.Web.Controllers
 				var vOutput = @"<html><body><script>window.parent.CKEDITOR.tools.callFunction(" + CKEditorFuncNum + ", \"\", \"" + ex.Message + "\");</script></body></html>";
 				return Content(vOutput, "text/html");
 			}
+		}
+
+		[AcceptVerbs(new[] { "POST" }, Route = "/fs/upload-user-file-multiple/")]
+		[ResponseCache(NoStore = true, Duration = 0)]
+		public IActionResult UploadUserFileMultiple([FromForm] List<IFormFile> files)
+		{
+
+			var resultRecords = new List<EntityRecord>();
+			var response = new ResponseModel { Timestamp = DateTime.UtcNow, Success = true, Errors = new List<ErrorModel>() };
+
+			using (var connection = DbContext.Current.CreateConnection())
+			{
+				connection.BeginTransaction();
+
+				try
+				{
+
+					var currentUser = AuthService.GetUser(User);
+
+					foreach (var file in files)
+					{
+						var fileBuffer = ReadFully(file.OpenReadStream());
+						var fileName = ContentDispositionHeaderValue.Parse(file.ContentDisposition).FileName.ToString().Trim().ToLowerInvariant();
+						if (fileName.StartsWith("\"", StringComparison.InvariantCulture))
+							fileName = fileName.Substring(1);
+
+						if (fileName.EndsWith("\"", StringComparison.InvariantCulture))
+							fileName = fileName.Substring(0, fileName.Length - 1);
+
+						var recMan = new RecordManager();
+						DbFileRepository fsRepository = new DbFileRepository();
+						string section = Guid.NewGuid().ToString().Replace("-", "").ToLowerInvariant();
+						var filePath = "/user_file/" + currentUser.Id + "/" + section + "/" + fileName;
+						var createdFile = fsRepository.Create(filePath, fileBuffer, DateTime.Now, currentUser.Id);
+						var userFileId = Guid.NewGuid();
+
+						var userFileRecord = new EntityRecord();
+						#region << record fill >>
+						userFileRecord["id"] = userFileId;
+						userFileRecord["created_on"] = DateTime.Now;
+						userFileRecord["name"] = fileName;
+						userFileRecord["size"] = Math.Round((decimal)(file.Length / 1024), 0);
+						userFileRecord["path"] = filePath;
+
+						var mimeType = MimeMapping.MimeUtility.GetMimeMapping(filePath);
+						var fileExtension = Path.GetExtension(filePath);
+						if (mimeType.StartsWith("image"))
+						{
+							var dimensionsRecord = Helpers.GetImageDimension(fileBuffer);
+							userFileRecord["width"] = (decimal)dimensionsRecord["width"];
+							userFileRecord["height"] = (decimal)dimensionsRecord["height"];
+							userFileRecord["type"] = "image";
+						}
+						else if (mimeType.StartsWith("video"))
+						{
+							userFileRecord["type"] = "video";
+						}
+						else if (mimeType.StartsWith("audio"))
+						{
+							userFileRecord["type"] = "audio";
+						}
+						else if (fileExtension == ".doc" || fileExtension == ".docx" || fileExtension == ".odt" || fileExtension == ".rtf"
+						 || fileExtension == ".txt" || fileExtension == ".pdf" || fileExtension == ".html" || fileExtension == ".htm" || fileExtension == ".ppt"
+						  || fileExtension == ".pptx" || fileExtension == ".xls" || fileExtension == ".xlsx" || fileExtension == ".ods" || fileExtension == ".odp")
+						{
+							userFileRecord["type"] = "document";
+						}
+						else
+						{
+							userFileRecord["type"] = "other";
+						}
+						#endregion
+
+						var recordCreateResult = recMan.CreateRecord("user_file", userFileRecord);
+						if (!recordCreateResult.Success)
+						{
+							throw new Exception(recordCreateResult.Message);
+						}
+						resultRecords.Add(userFileRecord);
+					}
+					connection.CommitTransaction();
+					response.Success = true;
+					response.Object = resultRecords;
+					return DoResponse(response);
+				}
+				catch (Exception ex)
+				{
+					connection.RollbackTransaction();
+					response.Success = false;
+					response.Message = ex.Message;
+					return DoResponse(response);
+				}
+			}
+		}
+
+		[AcceptVerbs(new[] { "POST" }, Route = "/fs/upload-file-multiple/")]
+		[ResponseCache(NoStore = true, Duration = 0)]
+		public IActionResult UploadFileMultiple([FromForm] List<IFormFile> files)
+		{
+
+			var resultRecords = new List<EntityRecord>();
+			var response = new ResponseModel { Timestamp = DateTime.UtcNow, Success = true, Errors = new List<ErrorModel>() };
+
+			using (var connection = DbContext.Current.CreateConnection())
+			{
+				connection.BeginTransaction();
+
+				try
+				{
+					foreach (var file in files)
+					{
+						var fileBuffer = ReadFully(file.OpenReadStream());
+						var fileName = ContentDispositionHeaderValue.Parse(file.ContentDisposition).FileName.ToString().Trim().ToLowerInvariant();
+						if (fileName.StartsWith("\"", StringComparison.InvariantCulture))
+							fileName = fileName.Substring(1);
+
+						if (fileName.EndsWith("\"", StringComparison.InvariantCulture))
+							fileName = fileName.Substring(0, fileName.Length - 1);
+
+						var recMan = new RecordManager();
+						DbFileRepository fsRepository = new DbFileRepository();
+						DbFile dbFile = fsRepository.CreateTempFile(fileName, fileBuffer);
+
+						var resultRec = new EntityRecord();
+
+						resultRec["id"] = dbFile.Id;
+						resultRec["created_on"] = DateTime.Now;
+						resultRec["name"] = fileName;
+						resultRec["size"] = Math.Round((decimal)(file.Length / 1024), 0);
+						resultRec["path"] = dbFile.FilePath;
+
+						var mimeType = MimeMapping.MimeUtility.GetMimeMapping(dbFile.FilePath);
+						var fileExtension = Path.GetExtension(dbFile.FilePath);
+						if (mimeType.StartsWith("image"))
+						{
+							var dimensionsRecord = Helpers.GetImageDimension(fileBuffer);
+							resultRec["width"] = (decimal)dimensionsRecord["width"];
+							resultRec["height"] = (decimal)dimensionsRecord["height"];
+							resultRec["type"] = "image";
+						}
+						else if (mimeType.StartsWith("video"))
+						{
+							resultRec["type"] = "video";
+						}
+						else if (mimeType.StartsWith("audio"))
+						{
+							resultRec["type"] = "audio";
+						}
+						else if (fileExtension == ".doc" || fileExtension == ".docx" || fileExtension == ".odt" || fileExtension == ".rtf"
+						 || fileExtension == ".txt" || fileExtension == ".pdf" || fileExtension == ".html" || fileExtension == ".htm" || fileExtension == ".ppt"
+						  || fileExtension == ".pptx" || fileExtension == ".xls" || fileExtension == ".xlsx" || fileExtension == ".ods" || fileExtension == ".odp")
+						{
+							resultRec["type"] = "document";
+						}
+						else
+						{
+							resultRec["type"] = "other";
+						}
+
+						resultRecords.Add(resultRec);
+					}
+
+					connection.CommitTransaction();
+					response.Success = true;
+					response.Object = resultRecords;
+					return DoResponse(response);
+				}
+				catch (Exception ex)
+				{
+					connection.RollbackTransaction();
+					response.Success = false;
+					response.Message = ex.Message;
+					return DoResponse(response);
+				}
+			}
+		}
+
+
+		#endregion
+
+		#region << Utils >>
+
+		public static Stream GenerateStreamFromString(string s)
+		{
+			var stream = new MemoryStream();
+			var writer = new StreamWriter(stream);
+			writer.Write(s);
+			writer.Flush();
+			stream.Position = 0;
+			return stream;
+		}
+		#endregion
+
+		#region <== Snippets ===>
+
+		[AcceptVerbs(new[] { "GET" }, Route = "api/v3/en_US/snippets")]
+		public IActionResult GetSnippetNames(string search = "", int page = 1, int pageSize = 30)
+		{
+			var response = new TypeaheadResponse();
+			var snippets = SnippetService.Snippets.Keys.OrderBy(x => x).ToList();
+			if (string.IsNullOrWhiteSpace(search))
+				return new JsonResult(snippets.Skip(page - 1).Take(pageSize).ToList());
+			else
+				return new JsonResult(snippets.Where(x => x.ToLowerInvariant().Contains(search.ToLowerInvariant())).Skip(page - 1).Take(pageSize).ToList());
+		}
+
+		[AcceptVerbs(new[] { "GET" }, Route = "api/v3/en_US/snippet")]
+		public IActionResult GetSnippetText([FromQuery]string name)
+		{
+			ResponseModel response = new ResponseModel { Timestamp = DateTime.UtcNow, Success = true, Errors = new List<ErrorModel>() };
+
+			try
+			{
+				var snippet = SnippetService.GetSnippet(name);
+				if (snippet == null)
+					throw new Exception($"Snippet '{name}' is not found.");
+				else
+					response.Object = snippet.GetText();
+			}
+			catch (Exception e)
+			{
+				new LogService().Create(Diagnostics.LogType.Error, "GetSnippetNames", e);
+				response.Success = false;
+				response.Message = e.Message + e.StackTrace;
+			}
+
+			return DoResponse(response);
 		}
 
 		#endregion

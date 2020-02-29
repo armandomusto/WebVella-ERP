@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -26,19 +27,21 @@ namespace WebVella.Erp.Eql
 		const string FROM = @"FROM {0}";
 
 		const string OTM_RELATION_TEMPLATE =
-@"$$$TABS$$$(SELECT  COALESCE( array_to_json( array_agg( row_to_json(d) )), '[]') FROM ( 
-$$$TABS$$$ SELECT {1} 
+@"$$$TABS$$$(SELECT  COALESCE( array_to_json( array_agg( row_to_json(d) )), '[]') FROM (
+$$$TABS$$$ SELECT {1}
 $$$TABS$$$ FROM {2} {3}
 $$$TABS$$$ WHERE {3}.{4} = {5}.{6} ) d )::jsonb AS ""{0}"",";
 
 		const string MTM_RELATION_TEMPLATE =
-@"$$$TABS$$$(SELECT  COALESCE(  array_to_json(array_agg( row_to_json(d))), '[]') FROM ( 
+@"$$$TABS$$$(SELECT  COALESCE(  array_to_json(array_agg( row_to_json(d))), '[]') FROM (
 $$$TABS$$$ SELECT {1}
 $$$TABS$$$ FROM {2} {3}
 $$$TABS$$$ LEFT JOIN  {4} {5} ON {6}.{7} = {8}.{9}
 $$$TABS$$$ WHERE {10}.{11} = {12}.{13} )d  )::jsonb AS ""{0}"",";
 
-		const string FILTER_JOIN = @"LEFT OUTER JOIN  {0} {1} ON {2}.{3} = {4}.{5}";
+		const string FILTER_JOIN = @"
+LEFT OUTER JOIN  {0} {1} ON {2}.{3} = {4}.{5}";
+
 		#endregion
 
 		private class SelectInfoWrapper
@@ -74,7 +77,8 @@ $$$TABS$$$ WHERE {10}.{11} = {12}.{13} )d  )::jsonb AS ""{0}"",";
 			SelectInfoWrapper rootInfo = ProcessEntity(fromEntity, selectNode.Fields);
 			StringBuilder sql = new StringBuilder();
 			sql.AppendLine(BEGIN_OUTER_SELECT);
-			sql.AppendLine(BEGIN_SELECT_DISTINCT);
+			//sql.AppendLine(BEGIN_SELECT_DISTINCT);
+			sql.AppendLine(BEGIN_SELECT);
 			var fieldsSql = BuildFieldsSql(rootInfo, 1, fieldsMeta);
 			sql.Append(fieldsSql);
 			sql.AppendLine(END_SELECT);
@@ -297,7 +301,7 @@ $$$TABS$$$ WHERE {10}.{11} = {12}.{13} )d  )::jsonb AS ""{0}"",";
 			//append total count column
 			if (depth == 1)
 				AppendToStringBuilder(sb, depth, true, " COUNT(*) OVER() AS ___total_count___,");
-			
+
 			bool trimed = false;
 			if (rootInfo.Children.Count == 0)
 			{
@@ -393,7 +397,7 @@ $$$TABS$$$ WHERE {10}.{11} = {12}.{13} )d  )::jsonb AS ""{0}"",";
 					}
 					else
 					{
-						if (info.RelationInfo.Direction == EqlRelationDirectionType.TargetOrigin)
+						if (info.RelationInfo.Direction == EqlRelationDirectionType.OriginTarget)
 						{
 							string alias = $"{RECORD_COLLECTION_PREFIX}{info.Relation.OriginEntityName}";
 							if (info.Parent != null && info.Parent.Relation != null)
@@ -492,7 +496,7 @@ $$$TABS$$$ WHERE {10}.{11} = {12}.{13} )d  )::jsonb AS ""{0}"",";
 						sb.Remove(sb.Length - 3, 3);
 				}
 
-				
+
 				if(!sb.ToString().EndsWith("\r\n"))
 					AppendToStringBuilder(sb, depth, true, "");
 
@@ -564,6 +568,10 @@ $$$TABS$$$ WHERE {10}.{11} = {12}.{13} )d  )::jsonb AS ""{0}"",";
 				case EqlNodeType.Keyword:
 					if (((EqlKeywordNode)operandNode).Keyword == "null")
 						operandString = $"NULL";
+					else if (((EqlKeywordNode)operandNode).Keyword == "true")
+						operandString = $"TRUE";
+					else if (((EqlKeywordNode)operandNode).Keyword == "false")
+						operandString = $"FALSE";
 					else
 						throw new EqlException($"WHERE CLAUSE: Unknown term '{((EqlKeywordNode)operandNode).Keyword}' used as keyword.");
 					break;
@@ -614,7 +622,7 @@ $$$TABS$$$ WHERE {10}.{11} = {12}.{13} )d  )::jsonb AS ""{0}"",";
 			string firstOperandString = ProcessExpressionOperandNode(expNode.FirstOperand, entityName, relationsUsedInWhere, out firstOperandField);
 			string secondOperandString = ProcessExpressionOperandNode(expNode.SecondOperand, entityName, relationsUsedInWhere, out secondOperandField);
 
-			if (!( firstOperandString.StartsWith(" (") || firstOperandString.StartsWith(" to_tsvector")) && firstOperandField == null)
+			if (!( firstOperandString.StartsWith(" (") || firstOperandString.StartsWith(" to_tsvector") || firstOperandString.StartsWith("@") ) && firstOperandField == null)
 				throw new EqlException($"WHERE: First operand in where expressions should always be an entity field name . '{firstOperandString}' is not a field name.");
 
 			if ((firstOperandString == "NULL" || secondOperandString == "NULL") && (expNode.Operator != "=" && expNode.Operator != "<>" && expNode.Operator != "!="))
@@ -623,8 +631,21 @@ $$$TABS$$$ WHERE {10}.{11} = {12}.{13} )d  )::jsonb AS ""{0}"",";
 			switch (expNode.Operator)
 			{
 				case "=":
+					if (firstOperandString == "NULL") //keyword NULL
+						return $" ( {secondOperandString} IS NULL ) ";
 					if (secondOperandString == "NULL") //keyword NULL
 						return $" ( {firstOperandString} IS NULL ) ";
+
+					if (firstOperandString.StartsWith("@")) //parameter
+					{
+						string paramName = firstOperandString;
+						var param = Parameters.SingleOrDefault(x => x.ParameterName == paramName);
+						if (param == null)
+							throw new EqlException($"WHERE: Parameter '{paramName}' not found.");
+
+						if (param.Value == null || param.Value == DBNull.Value)
+							return $" ( {secondOperandString} IS NULL ) ";
+					}
 					if (secondOperandString.StartsWith("@")) //parameter
 					{
 						string paramName = secondOperandString;
@@ -666,15 +687,32 @@ $$$TABS$$$ WHERE {10}.{11} = {12}.{13} )d  )::jsonb AS ""{0}"",";
 					if (firstOperandField != null)
 					{
 						if (firstOperandField.GetFieldType() == FieldType.MultiSelectField)
-							return $" ( {firstOperandString}  @>  {secondOperandString} ) ";
+						{
+							var result =  $" ( {firstOperandString}  @>  {secondOperandString} ) ";
+							string paramName = secondOperandString;
+							var param = Parameters.SingleOrDefault(x => x.ParameterName == paramName);
+							if (param != null && param.Value != null )
+							{
+								//if parameter is not array or enumerable, we create new parameter 
+								//with array type
+								if (!typeof(IEnumerable).IsAssignableFrom(param.Value.GetType()) || param.Value.GetType() == typeof(string))
+								{
+									string newParamName = $"{secondOperandString}_converted_to_array";
+									var newParamValue = new List<string> { param.Value.ToString() };
+									Parameters.Add(new EqlParameter(newParamName, newParamValue));
+									result = $" ( {firstOperandString}  @>  {newParamName} ) ";
+								}
+							}
+							return result;
+						}
 						else
 						{
 							string paramName = secondOperandString;
 							var param = Parameters.SingleOrDefault(x => x.ParameterName == paramName);
-							if (param == null) 	throw new EqlException($"WHERE: Parameter '{paramName}' not found.");
-							param.Value = "%" + param.Value + "%";
+							if (param == null) throw new EqlException($"WHERE: Parameter '{paramName}' not found.");
+							//param.Value = "%" + param.Value + "%";
 
-							return $" ( {firstOperandString}  ILIKE  {secondOperandString} ) ";
+							return $" ( {firstOperandString}  ILIKE  CONCAT ( '%' , {secondOperandString} , '%' ) )";
 						}
 					}
 					else
@@ -685,9 +723,9 @@ $$$TABS$$$ WHERE {10}.{11} = {12}.{13} )d  )::jsonb AS ""{0}"",";
 						string paramName = secondOperandString;
 						var param = Parameters.SingleOrDefault(x => x.ParameterName == paramName);
 						if (param == null) throw new EqlException($"WHERE: Parameter '{paramName}' not found.");
-						param.Value = param.Value + "%";
+						//param.Value = param.Value + "%";
 
-						return $" ( {firstOperandString}  ILIKE  {secondOperandString} ) ";
+						return $" ( {firstOperandString}  ILIKE CONCAT ( '%' , {secondOperandString}  ) ) ";
 					}
 					else
 						throw new EqlException($"WHERE: STARTSWITH first operand should be a field name.");
@@ -719,7 +757,7 @@ $$$TABS$$$ WHERE {10}.{11} = {12}.{13} )d  )::jsonb AS ""{0}"",";
 							//coalesce(string_agg(tag.name, ' '))
 							if (singleWord)
 							{
-								param.Value = param.Value + ":*"; //search for all lexemes starting with this word 
+								param.Value = param.Value + ":*"; //search for all lexemes starting with this word
 								return $" to_tsvector( 'simple', {firstOperandString} ) @@ to_tsquery( 'simple', {paramName} ) ";
 							}
 							else
@@ -742,7 +780,7 @@ $$$TABS$$$ WHERE {10}.{11} = {12}.{13} )d  )::jsonb AS ""{0}"",";
 
 							if (singleWord)
 							{
-								text = text + ":*"; //search for all lexemes starting with this word 
+								text = text + ":*"; //search for all lexemes starting with this word
 								return $" to_tsvector( 'simple', {firstOperandString} ) @@ to_tsquery( 'simple', '{text}') ";
 							}
 							else
@@ -790,7 +828,7 @@ $$$TABS$$$ WHERE {10}.{11} = {12}.{13} )d  )::jsonb AS ""{0}"",";
 					//when the relation is origin -> target entity
 					if (relation.OriginEntityId == fromEntity.Id)
 					{
-						relationJoinSql = string.Format(FILTER_JOIN,
+						relationJoinSql += string.Format(FILTER_JOIN,
 							$"{RECORD_COLLECTION_PREFIX}{relation.TargetEntityName}",
 							relationAlias,
 							relationAlias,
@@ -800,7 +838,7 @@ $$$TABS$$$ WHERE {10}.{11} = {12}.{13} )d  )::jsonb AS ""{0}"",";
 					}
 					else //when the relation is target -> origin, we have to query origin entity
 					{
-						relationJoinSql = string.Format(FILTER_JOIN,
+						relationJoinSql += string.Format(FILTER_JOIN,
 							   $"{RECORD_COLLECTION_PREFIX}{relation.OriginEntityName}",
 							   relationAlias,
 							   relationAlias,
@@ -817,7 +855,7 @@ $$$TABS$$$ WHERE {10}.{11} = {12}.{13} )d  )::jsonb AS ""{0}"",";
 						//when the relation is origin -> target entity
 						if (relation.OriginEntityId == fromEntity.Id)
 						{
-							relationJoinSql = string.Format(FILTER_JOIN,
+							relationJoinSql += string.Format(FILTER_JOIN,
 								$"{RECORD_COLLECTION_PREFIX}{relation.TargetEntityName}",
 								relationAlias,
 								relationAlias,
@@ -827,7 +865,7 @@ $$$TABS$$$ WHERE {10}.{11} = {12}.{13} )d  )::jsonb AS ""{0}"",";
 						}
 						else //when the relation is target -> origin, we have to query origin entity
 						{
-							relationJoinSql = string.Format(FILTER_JOIN,
+							relationJoinSql += string.Format(FILTER_JOIN,
 								 $"{RECORD_COLLECTION_PREFIX}{relation.OriginEntityName}",
 								relationAlias,
 								relationAlias,
@@ -850,7 +888,7 @@ $$$TABS$$$ WHERE {10}.{11} = {12}.{13} )d  )::jsonb AS ""{0}"",";
 						}
 						else
 						{
-							relationJoinSql = string.Format(FILTER_JOIN,
+							relationJoinSql += string.Format(FILTER_JOIN,
 								$"{RECORD_COLLECTION_PREFIX}{relation.TargetEntityName}",
 								relationAlias,
 								relationAlias,
@@ -873,12 +911,12 @@ $$$TABS$$$ WHERE {10}.{11} = {12}.{13} )d  )::jsonb AS ""{0}"",";
 						string targetJoinAlias = relation.Name + "_target";
 						string originJoinAlias = relationAlias;
 
-						relationJoinSql = string.Format(FILTER_JOIN,
+						relationJoinSql += string.Format(FILTER_JOIN,
 								 /*LEFT OUTER JOIN*/ relationTable, /* */ targetJoinAlias /*ON*/,
 								 targetJoinAlias, /*.*/ "target_id", /* =  */
 								 targetJoinTable, /*.*/ relation.TargetFieldName);
 
-						relationJoinSql = relationJoinSql + "\r\n" + string.Format(FILTER_JOIN,
+						relationJoinSql += "\r\n" + string.Format(FILTER_JOIN,
 								/*LEFT OUTER JOIN*/ originJoinTable, /* */ originJoinAlias /*ON*/,
 								targetJoinAlias, /*.*/ "origin_id", /* =  */
 								originJoinAlias, /*.*/ relation.OriginFieldName);
@@ -888,12 +926,12 @@ $$$TABS$$$ WHERE {10}.{11} = {12}.{13} )d  )::jsonb AS ""{0}"",";
 						string targetJoinAlias = relationAlias;
 						string originJoinAlias = relation.Name + "_origin";
 
-						relationJoinSql = string.Format(FILTER_JOIN,
+						relationJoinSql += string.Format(FILTER_JOIN,
 								/*LEFT OUTER JOIN*/ relationTable, /* */ originJoinAlias /*ON*/,
 								originJoinAlias, /*.*/ "origin_id", /* =  */
 								originJoinTable, /*.*/ relation.OriginFieldName);
 
-						relationJoinSql = relationJoinSql + "\r\n" + string.Format(FILTER_JOIN,
+						relationJoinSql += "\r\n" + string.Format(FILTER_JOIN,
 								  /*LEFT OUTER JOIN*/ targetJoinTable, /* */ targetJoinAlias /*ON*/,
 								originJoinAlias, /*.*/ "target_id", /* =  */
 								targetJoinAlias, /*.*/ relation.TargetFieldName);
